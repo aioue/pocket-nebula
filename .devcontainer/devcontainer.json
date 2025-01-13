@@ -1,0 +1,63 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "pocket-nebula",
+
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	//"image": "mcr.microsoft.com/devcontainers/base:jammy"
+
+	"build": {
+		// Path is relative to the devcontainer.json file.
+		"dockerfile": "Dockerfile",
+		"args": {
+			// set devcontainer-cli arg for Dockerfile
+			"devcontainercli": "true"
+		}
+	},
+
+	// import Open Nebula Credentials and URLs from host environment, used for Ansible module authentication
+	"remoteEnv": {
+		"ONE_USERNAME": "${localEnv:ONE_USERNAME}",
+		"ONE_PASSWORD": "${localEnv:ONE_PASSWORD}",
+		"ONE_XMLRPC": "${localEnv:ONE_XMLRPC}",
+		"ONE_URL": "${localEnv:ONE_URL}",
+		"ONEFLOW_URL": "${localEnv:ONEFLOW_URL}"
+	},
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers/features/python:1": {
+			// "toolsToInstall": "flake8,autopep8,black,yapf,mypy,pydocstyle,pycodestyle,bandit,pipenv,virtualenv,pytest,pylint,argcomplete,pipx"
+			"toolsToInstall": "virtualenv, argcomplete"
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// Install ansible and pyone under pipx, requires the python feature so must be run after Docker build
+	"postCreateCommand": "git config --global --add safe.directory /workspaces/automation && pipx install --include-deps ansible && pipx inject --include-deps --include-apps ansible pyone && pipx install ansible-lint && pip3 install pyone --break-system-packages",
+
+	"mounts": [
+		// Allow access to SSH path for Ansible
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",
+		"type=bind,source=${localEnv:HOME}/.ansible-vault,target=/home/vscode/.ansible-vault,readonly",
+		// OpenNebula credentials path required for Ruby CLI authentication
+		"type=bind,source=${localEnv:HOME}/.one,target=/home/vscode/.one,readonly",
+		"source=automation-bashhistory,target=/commandhistory,type=volume"
+	],
+
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"redhat.ansible"
+			]
+		}
+	}
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}

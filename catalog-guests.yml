@@ -1,0 +1,15 @@
+---
+
+# ansible-playbook --inventory inventory/opennebula catalog-guests.yml
+
+- name: collect information from all guests
+  hosts: all
+  become: false
+  gather_facts: false
+
+  tasks:
+
+    - debug:
+        msg: |
+          VM_NAME={{ inventory_hostname }}
+          HOST_IP={{ansible_host}}
