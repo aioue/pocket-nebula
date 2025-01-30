@@ -1,6 +1,12 @@
 # Pocket Nebula
 
-OpenNebula Devcontainer preconfigured with the OpenNebula CLI, and Ansible.
+**A Dev Container preconfigured with the OpenNebula CLI, and Ansible.**
+
+[OpenNebula](https://opennebula.io/) is an Open Source Cloud & Edge Computing Platform.
+
+A [development container](https://containers.dev/) allows you to use a container as an isolated, full-featured development environment.
+
+Pocket Nebula provides an instant isolated environment for OpenNebula operations (host and guest config and management).
 
 # Setup
 
