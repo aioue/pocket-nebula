@@ -1,0 +1,145 @@
+# OS and System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE and Editor Files
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/.ropeproject
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.pyo
+*.pyd
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Ansible
+*.retry
+.ansible/
+ansible.log
+*.vault
+.vault-pass
+.vault_pass
+hosts.ini
+group_vars/vault.yml
+host_vars/*/vault.yml
+
+# OpenNebula
+.one_auth
+one_auth
+
+# Logs and Temporary Files
+*.log
+*.tmp
+*.temp
+*.pid
+*.seed
+*.pid.lock
+logs/
+*.out
+*.err
+
+# Container and Docker
+.docker/
+docker-compose.override.yml
+.dockerignore.local
+
+# SSH Keys (if accidentally placed in project)
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Backup files
+*.backup
+*.bak
+*.orig
+*~
+
+# Runtime and cache directories
+.cache/
+.tmp/
+tmp/
+.sass-cache/
+.grunt/
+node_modules/
+.npm/
+.yarn/
+.pnp/
+.next/
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Generated files
+*.generated
+*.auto
+auto-*
+generated-*
+
+# Test results
+test-results/
+test-output/
+.nyc_output/
+coverage/
+
+# OS specific network files
+.netrwhist
+*~
+
+# Temporary folders
+**/tmp/
+**/temp/

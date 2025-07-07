@@ -1,0 +1,71 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "pocket-nebula",
+
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	//"image": "mcr.microsoft.com/devcontainers/base:jammy"
+
+	"build": {
+		// Path is relative to the devcontainer.json file.
+		"dockerfile": "Dockerfile",
+		"args": {
+			// set vscode devcontainer arg for Dockerfile validation
+			"vscodedevcontainer": "true"
+		}
+	},
+
+	// import Open Nebula Credentials from host
+	"remoteEnv": {
+		"ONE_USERNAME": "${localEnv:ONE_USERNAME}",
+		"ONE_PASSWORD": "${localEnv:ONE_PASSWORD}",
+		"ANSIBLE_VAULT_PASSWORD": "${localEnv:ANSIBLE_VAULT_PASSWORD}"
+	},
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers/features/python:1": {
+			// "toolsToInstall": "flake8,autopep8,black,yapf,mypy,pydocstyle,pycodestyle,bandit,pipenv,virtualenv,pytest,pylint,argcomplete,pipx"
+			"toolsToInstall": "virtualenv, argcomplete"
+		}
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Lifecycle commands for better container management
+	"onCreateCommand": "echo '🏗️  Container created, preparing for setup...'",
+	"postCreateCommand": ".devcontainer/setup.sh",
+	"postStartCommand": "echo '🚀 Container started and ready for development!'",
+
+	"mounts": [
+		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",
+		"type=bind,source=${localEnv:HOME}/.one,target=/home/vscode/.one,readonly",
+		"type=bind,source=${localEnv:HOME}/.ansible-vault,target=/home/vscode/.ansible-vault,readonly",
+		"source=pocket-nebula-bashhistory,target=/commandhistory,type=volume"
+	],
+
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"redhat.ansible"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"files.watcherExclude": {
+					"**/.git/**": true,
+					"**/.ansible/**": true,
+					"**/roles/**/.git/**": true
+				},
+				"ansible.python.interpreterPath": "/usr/bin/python3",
+				"ansible.validation.lint.enabled": true,
+				"ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint"
+			}
+		}
+	}
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}

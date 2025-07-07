@@ -1,0 +1,24 @@
+---
+
+# ansible-playbook --inventory inventory/opennebula catalog-guests.yml
+
+- name: collect information from all guests
+  hosts: all
+  become: false
+  gather_facts: false
+
+  tasks:
+
+    # - name: Print all available facts
+    #   ansible.builtin.debug:
+    #     var: ansible_facts
+
+    - name: Get OS version and pretty name
+      raw: cat /etc/os-release | grep VERSION_ID; cat /etc/os-release | grep PRETTY
+      register: raw
+
+    - debug:
+        msg: |
+          VM_NAME={{ inventory_hostname }}
+          HOST_IP={{ ansible_host }}
+          {{ raw['stdout'] }}

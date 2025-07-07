@@ -1,0 +1,14 @@
+---
+# ansible-galaxy collection install -r roles/requirements.yml
+collections:
+  - name: community.general
+  # Add your required collections here
+  # - name: your.collection
+  #   version: ">=1.0.0"
+
+# ansible-galaxy install -r roles/requirements.yml --roles-path roles
+# Example role installation:
+# - name: your.role
+#   src: https://github.com/username/ansible-role
+#   scm: git
+#   version: master 
