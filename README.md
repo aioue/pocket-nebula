@@ -1,6 +1,6 @@
 # Pocket Nebula ✨→👖
 
-# A Skeleton Dev Container preconfigured with the OpenNebula CLI, and Ansible
+A Skeleton Dev Container preconfigured with the OpenNebula CLI, and Ansible
 
 [OpenNebula](https://opennebula.io/) is an Open Source Cloud & Edge Computing Platform.
 
