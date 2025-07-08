@@ -323,8 +323,8 @@ echo $ANSIBLE_VAULT_PASSWORD
 
 **Container Build Issues**:
 ```bash
-# Rebuild the container
-# In VS Code: Ctrl+Shift+P → "Dev Containers: Rebuild Container"
+# Rebuild the container from scratch (takes a few minutes)
+# In VS Code: Ctrl+Shift+P → "Dev Containers: Rebuild Container without Cache"
 ```
 
 **Wrong Terminal Location**:
