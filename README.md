@@ -1,4 +1,4 @@
-# Pocket Nebula 👖→✨
+# Pocket Nebula ✨→👖
 
 # A Skeleton Dev Container preconfigured with the OpenNebula CLI, and Ansible
 
