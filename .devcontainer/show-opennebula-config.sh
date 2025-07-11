@@ -34,13 +34,16 @@ if command -v onevm >/dev/null 2>&1; then
     CLI_VERSION=$(gem list opennebula-cli 2>/dev/null | grep opennebula-cli | head -1 || echo "Unknown")
     echo "  💎 CLI Version: $CLI_VERSION"
     
-    # Test connectivity (suppress output, just check if it works)
-    if onevm list >/dev/null 2>&1; then
+    # Test connectivity and capture error output if any
+    if error_output=$(onevm list 2>&1 >/dev/null); then
         echo "  ✅ Connection: Working"
     else
-        echo "  ⚠️  Connection: Authentication may be required"
+        echo "  ⚠️  Connection test failed. Error output:\n"
+        # Indent each line of error message for readability
+        echo "$error_output" | sed 's/^/       /'
+
         # Provide helpful troubleshooting hints without exposing credentials
-        echo "     ➤ Tip: The OpenNebula CLI needs a valid authentication token ( ~/.one/one_auth ) or the ONE_AUTH env variable."
+        echo "\n     ➤ Tip: The OpenNebula CLI needs a valid authentication token ( ~/.one/one_auth ) or the ONE_AUTH env variable."
         echo "       You can initialise it by running:"
         echo "         oneuser login --user \"$ONE_USERNAME\" --endpoint \"${ONE_URL:-<XML-RPC URL>}\""
         echo "       (you will be prompted for your password and a token will be stored in ~/.one/one_auth)"
