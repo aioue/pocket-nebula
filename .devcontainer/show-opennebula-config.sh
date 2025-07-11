@@ -39,6 +39,12 @@ if command -v onevm >/dev/null 2>&1; then
         echo "  ✅ Connection: Working"
     else
         echo "  ⚠️  Connection: Authentication may be required"
+        # Provide helpful troubleshooting hints without exposing credentials
+        echo "     ➤ Tip: The OpenNebula CLI needs a valid authentication token ( ~/.one/one_auth ) or the ONE_AUTH env variable."
+        echo "       You can initialise it by running:"
+        echo "         oneuser login --user \"$ONE_USERNAME\" --endpoint \"${ONE_URL:-<XML-RPC URL>}\""
+        echo "       (you will be prompted for your password and a token will be stored in ~/.one/one_auth)"
+        echo "       After logging in, try 'onevm list' to confirm the session works, then re-run this script."
     fi
 else
     echo "  ❌ CLI Tools: Not installed"
