@@ -19,6 +19,10 @@
 	"remoteEnv": {
 		"ONE_USERNAME": "${localEnv:ONE_USERNAME}",
 		"ONE_PASSWORD": "${localEnv:ONE_PASSWORD}",
+		"ONE_URL": "${localEnv:ONE_URL}",
+		"ONE_XMLRPC": "${localEnv:ONE_XMLRPC}",
+		"ONEFLOW_URL": "${localEnv:ONEFLOW_URL}",
+		"OPENNEBULA_CLI_VERSION_OVERRIDE": "${localEnv:OPENNEBULA_CLI_VERSION_OVERRIDE}",
 		"ANSIBLE_VAULT_PASSWORD": "${localEnv:ANSIBLE_VAULT_PASSWORD}"
 	},
 
@@ -36,7 +40,7 @@
 	// Lifecycle commands for better container management
 	"onCreateCommand": "echo '🏗️  Container created, preparing for setup...'",
 	"postCreateCommand": ".devcontainer/setup.sh",
-	"postStartCommand": "echo '🚀 Container started and ready for development!'",
+	"postStartCommand": "./.devcontainer/show-opennebula-config.sh && echo '🚀 Container started and ready for development!'",
 
 	"mounts": [
 		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",

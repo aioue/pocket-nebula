@@ -3,6 +3,22 @@ set -e  # Exit on any error
 
 echo "🚀 Setting up development environment..."
 
+# Validate OpenNebula environment variables
+echo "🔍 Validating OpenNebula configuration..."
+if [[ -z "${ONE_URL:-}" ]]; then
+    echo "❌ ERROR: ONE_URL environment variable is not set"
+    echo "Please refer to the 'Prerequisites' section in README.md for setup instructions"
+    exit 1
+fi
+
+if [[ -z "${ONE_USERNAME:-}" || -z "${ONE_PASSWORD:-}" ]]; then
+    echo "❌ ERROR: ONE_USERNAME and ONE_PASSWORD environment variables are not set"
+    echo "Please refer to the 'Prerequisites' section in README.md for setup instructions"
+    exit 1
+fi
+
+echo "✅ OpenNebula environment variables validated"
+
 # Configure git safe directory
 echo "📝 Configuring git safe directory..."
 git config --global --add safe.directory /workspaces/pocket-nebula
@@ -29,7 +45,7 @@ echo "📚 Installing Ansible collections..."
 if [ -f "roles/requirements.yml" ]; then
     ansible-galaxy collection install -r roles/requirements.yml
 else
-    echo "⚠️  Warning: roles/requirements.yml not found, skipping collection install"
+    echo "ℹ️  Info: roles/requirements.yml not found, skipping collection install"
 fi
 
 # Verify installations
@@ -42,5 +58,6 @@ else
     echo "  ⚠️  pyone not found in system Python (available in pipx/ansible environment only, independent scripts will not work)"
 fi
 
+echo ""
 echo "✅ Development environment setup complete!"
 echo "🎯 You can now start developing with Ansible and OpenNebula tools" 

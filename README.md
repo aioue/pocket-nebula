@@ -56,9 +56,11 @@ Set up your OpenNebula credentials on your host system:
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
 export ONE_USERNAME=your-opennebula-username
 export ONE_PASSWORD=your-opennebula-password
-export ONE_XMLRPC=https://your-opennebula-host/RPC2
-export ONE_URL=https://your-opennebula-host/RPC2
-export ONEFLOW_URL=https://your-opennebula-host:2474
+export ONE_URL=https://your-opennebula-host/RPC2          # RPC API endpoint
+export ONEFLOW_URL=https://your-opennebula-host:2474      # OneFlow endpoint (optional)
+
+# Optional: Override CLI version (see CLI Version Management section)
+export OPENNEBULA_CLI_VERSION_OVERRIDE="~> 6.10.0"
 
 # Optional: Ansible vault password for encrypted files
 export ANSIBLE_VAULT_PASSWORD=your-vault-password
@@ -132,7 +134,6 @@ env | grep ONE
 # Expected output:
 # ONE_USERNAME=your-username
 # ONE_PASSWORD=your-password
-# ONE_XMLRPC=https://your-opennebula-host/RPC2
 # ONE_URL=https://your-opennebula-host/RPC2
 # ONEFLOW_URL=https://your-opennebula-host:2474
 
@@ -169,13 +170,75 @@ ansible-playbook --inventory inventory/opennebula catalog-guests.yml
 cat catalog-guests.yml
 ```
 
+## 🔧 CLI Tools Version Management
+
+This devcontainer automatically detects your OpenNebula server version and installs compatible CLI tools. 
+
+### Automatic Detection
+
+The devcontainer uses the `one.system.version` XML-RPC method to detect your server version:
+
+```shell
+# Check what version was detected
+.devcontainer/detect-opennebula-version.sh
+
+# See the CLI version specifier that would be used
+.devcontainer/detect-opennebula-version.sh cli-spec
+```
+
+### Manual Override
+
+You can override the automatic detection by setting `OPENNEBULA_CLI_VERSION_OVERRIDE` in your host environment or `.devcontainer/devcontainer.env`:
+
+```bash
+# Force install 6.8.x compatible tools
+OPENNEBULA_CLI_VERSION_OVERRIDE="~> 6.8.0"
+
+# Install exact version
+OPENNEBULA_CLI_VERSION_OVERRIDE="6.10.0"
+
+# Install latest 7.x tools (if working with newer servers)
+OPENNEBULA_CLI_VERSION_OVERRIDE="~> 7.0.0"
+```
+
+*After changing the override, rebuild your devcontainer for the changes to take effect.*
+
+### Version Detection Commands
+
+```shell
+# Show full server version
+.devcontainer/detect-opennebula-version.sh
+
+# Show CLI gem version specifier for compatibility
+.devcontainer/detect-opennebula-version.sh cli-spec
+
+# Show CLI version number
+.devcontainer/detect-opennebula-version.sh cli-version
+
+# Show configuration status
+.devcontainer/show-opennebula-config.sh
+```
+
+### Supported Version Detection
+
+- **OpenNebula 6.x servers**: Compatible CLI tools (6.8, 6.10, etc.)
+- **OpenNebula 7.x servers**: Compatible CLI tools (7.0+)
+- **Fallback**: If detection fails, defaults to 6.10.x tools
+
 ## Environment Variables
 
-The devcontainer supports multiple vault password sources in order of precedence:
+The devcontainer supports multiple configuration sources in order of precedence:
 
-1. **Environment Variable**: `ANSIBLE_VAULT_PASSWORD` (highest priority)
-2. **Vault File**: `~/.ansible-vault/.vault-file` (mounted from host)
-3. **Ansible Config**: `vault_password_file` setting in `ansible.cfg`
+1. **OpenNebula Credentials**:
+   - `ONE_USERNAME` and `ONE_PASSWORD`: Your OpenNebula credentials
+   - `ONE_URL`: XML-RPC endpoint (required)
+   - `ONEFLOW_URL`: OneFlow endpoint (optional)
+   - `OPENNEBULA_CLI_VERSION_OVERRIDE`: Force specific CLI version (optional)
+
+2. **Ansible Configuration**:
+   - `ANSIBLE_VAULT_PASSWORD`: Vault password (highest priority)
+   - `~/.ansible-vault/.vault-file`: Vault password file (mounted from host)
+   - `vault_password_file` setting in `ansible.cfg`
 
 **Note**: The `OPENNEBULA_USER_PASS` variable in `devcontainer.env` is a template and not used by default. Your actual OpenNebula credentials should be set via the `ONE_USERNAME` and `ONE_PASSWORD` environment variables, which take precedence.
 
