@@ -10,9 +10,16 @@ ARG USER_HOME_PATH="/home/${USERNAME}"
 ARG vscodedevcontainer
 RUN if [[ -z "$vscodedevcontainer" ]] ; then printf "\nERROR: This Dockerfile needs to be built with VS Code !" && exit 1; else printf "VS Code is detected: $vscodedevcontainer"; fi
 
+# Add a custom CA certificate to trust store (must be done before package installation)
+# If you server use a non-trusted cert, it must added to the CA to avoid SSL errors
+#COPY TRUSTED_CERT.crt /usr/local/share/ca-certificates/TRUSTED_CERT.crt
+#RUN apt-get -y install ca-certificates && update-ca-certificates
+# Set CA bundle path after certificate is installed and trust store is updated
+#RUN echo "export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt" >> ${USER_HOME_PATH}/.bashrc
+
 # Install system packages and OpenNebula CLI in optimized single layer
 # Using DEBIAN_FRONTEND=noninteractive prevents prompts during package installation
-# Installing ruby packages and OpenNebula CLI together reduces layer count and build time
+# Installing ruby packages first, then use dynamic version detection for OpenNebula CLI
 RUN apt-get update \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends \
@@ -21,11 +28,15 @@ RUN apt-get update \
         plocate \
         ruby-dev \
         rubygems \
-    && gem install opennebula-cli \
+        curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* \
     && rm -rf /var/tmp/*
+
+# Copy the version detection script and make it executable, used by setup.sh to install the correct version of OpenNebula CLI
+COPY detect-opennebula-version.sh /usr/local/bin/detect-opennebula-version.sh
+RUN chmod +x /usr/local/bin/detect-opennebula-version.sh
 
 # Configure complete shell environment, pipx completion, and persistent history in single layer
 # Combines all bash configuration to minimize layers and improve build cache efficiency
