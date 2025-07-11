@@ -48,6 +48,27 @@ else
     echo "ℹ️  Info: roles/requirements.yml not found, skipping collection install"
 fi
 
+# Detect and install OpenNebula CLI tools with compatible version
+echo "🔧 Installing OpenNebula CLI tools..."
+
+# Check for version override from environment
+if [[ -n "${OPENNEBULA_CLI_VERSION_OVERRIDE:-}" ]]; then
+    echo "📌 Using CLI version override: $OPENNEBULA_CLI_VERSION_OVERRIDE"
+    CLI_VERSION_SPEC="$OPENNEBULA_CLI_VERSION_OVERRIDE"
+else
+    echo "🔍 Auto-detecting compatible CLI version..."
+    if CLI_VERSION_SPEC=$(/usr/local/bin/detect-opennebula-version.sh cli-spec 2>/dev/null); then
+        echo "✅ Detected server version, using CLI tools: $CLI_VERSION_SPEC"
+    else
+        echo "⚠️  Auto-detection failed, using fallback version: ~> 6.10.0"
+        CLI_VERSION_SPEC="~> 6.10.0"
+    fi
+fi
+
+# Install the OpenNebula CLI with the determined version
+echo "💎 Installing opennebula-cli version: $CLI_VERSION_SPEC"
+sudo gem install --no-document opennebula-cli -v "$CLI_VERSION_SPEC"
+
 # Verify installations
 echo "🔍 Verifying installations..."
 echo "  ✓ Ansible version: $(ansible --version | head -1)"
