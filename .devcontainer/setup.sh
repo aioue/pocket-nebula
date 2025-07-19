@@ -35,6 +35,9 @@ pipx inject ansible passlib
 echo "🧹 Installing ansible-lint..."
 pipx install ansible-lint
 
+echo "🔐 Installing pilfer (Ansible vault bulk operations)..."
+pipx install pilfer
+
 # Install pyone for system Python (devcontainer-safe approach)
 # Using --break-system-packages is acceptable in isolated devcontainer environments
 echo "🐍 Installing pyone for system Python..."
@@ -73,6 +76,7 @@ sudo gem install --no-document opennebula-cli -v "$CLI_VERSION_SPEC"
 echo "🔍 Verifying installations..."
 echo "  ✓ Ansible version: $(ansible --version | head -1)"
 echo "  ✓ Ansible-lint version: $(ansible-lint --version)"
+echo "  ✓ Pilfer version: $(pilfer --help | head -1 | grep -o 'pilfer' || echo 'installed')"
 if python3 -c "import pyone" &> /dev/null; then
     echo "  ✓ pyone available in system Python environment"
 else
