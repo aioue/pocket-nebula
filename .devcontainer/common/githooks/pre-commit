@@ -69,6 +69,19 @@ if command -v python3 >/dev/null 2>&1; then
     while IFS= read -r f; do
         [[ -f "$f" ]] || continue
         case "$f" in
+            *.jsonc|*/devcontainer.json|devcontainer.json)
+                # JSONC: comments and trailing commas are legal here.
+                if ! python3 -c "
+import json,re,sys
+t=open(sys.argv[1]).read()
+t=re.sub(r'/\*.*?\*/','',t,flags=re.S)
+t=re.sub(r'(?<!:)//[^\n]*','',t)
+t=re.sub(r',(\s*[}\]])',r'\1',t)
+json.loads(t)" "$f" 2>/dev/null; then
+                    echo "❌ invalid JSONC in ${f}" >&2
+                    blocked=1
+                fi
+                ;;
             *.json)
                 if ! python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
                     echo "❌ invalid JSON in ${f}" >&2

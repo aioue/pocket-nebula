@@ -45,8 +45,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, pathlib, sys
+          import json, pathlib, re, sys
           import yaml
+
+          # devcontainer.json and *.jsonc are JSONC: comments and trailing commas
+          # are legal and the spec expects them. Strip both before parsing rather
+          # than skipping these files, which are the ones most worth checking.
+          def strip_jsonc(text):
+              text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+              text = re.sub(r'(?<!:)//[^\n]*', '', text)
+              return re.sub(r',(\s*[}\]])', r'\1', text)
+
           bad = []
           for p in pathlib.Path('.').rglob('*'):
               if '.git/' in str(p) or not p.is_file():
@@ -54,6 +63,8 @@ jobs:
               try:
                   if p.suffix in ('.yml', '.yaml'):
                       list(yaml.safe_load_all(p.read_text()))
+                  elif p.suffix == '.jsonc' or p.name == 'devcontainer.json':
+                      json.loads(strip_jsonc(p.read_text()))
                   elif p.suffix == '.json':
                       json.loads(p.read_text())
               except Exception as e:
