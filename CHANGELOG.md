@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/aioue/pocket-nebula/compare/v1.4.0...v1.4.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ci:** find the release PR via the list endpoint, not search ([aa10d50](https://github.com/aioue/pocket-nebula/commit/aa10d50a357ec1b834a768a78569e2b0f25d4064))
+* **image:** restore remoteUser, which the metadata LABEL had silently dropped ([76e0125](https://github.com/aioue/pocket-nebula/commit/76e0125a5509aeccb4907730fd3fd6d3f8c32805))
+
 ## [1.4.0](https://github.com/aioue/pocket-nebula/compare/v1.3.1...v1.4.0) (2026-08-14)
 
 
