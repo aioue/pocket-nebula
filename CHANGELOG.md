@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/aioue/pocket-nebula/compare/v1.3.0...v1.3.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* **ci:** parse devcontainer.json as JSONC, not strict JSON ([e6863ac](https://github.com/aioue/pocket-nebula/commit/e6863accc0d6fbfd50a2fae16128fb2a5390f636))
+* **githooks:** annotate vault-guard for shellcheck ([95b9dfb](https://github.com/aioue/pocket-nebula/commit/95b9dfbb5bbe4137c3a50644e9395cd915d5bf2c))
+
 ## [1.3.0](https://github.com/aioue/pocket-nebula/compare/v1.2.0...v1.3.0) (2026-08-14)
 
 
