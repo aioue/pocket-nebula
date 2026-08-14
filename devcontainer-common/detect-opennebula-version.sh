@@ -4,17 +4,18 @@
 
 set -euo pipefail
 
-# Use existing environment variables from devcontainer setup
-ONE_ENDPOINT="${ONE_URL:-${ONE_XMLRPC:-}}"
-ONE_AUTH="${ONE_USERNAME:-oneadmin}:${ONE_PASSWORD:-}"
+# Check if we have an endpoint - Ruby CLI uses ONE_XMLRPC, Ansible uses ONE_URL
+ONE_ENDPOINT="${ONE_XMLRPC:-${ONE_URL:-}}"
 
-# Validate required environment variables
-if [[ -z "$ONE_ENDPOINT" ]]; then
-    echo "ERROR: ONE_URL environment variable is not set" >&2
-    echo "Please refer to the 'Prerequisites' section in README.md for setup instructions" >&2
+if [[ -z "${ONE_ENDPOINT}" ]]; then
+    echo "ERROR: Neither ONE_XMLRPC nor ONE_URL environment variable is set" >&2
+    echo "ONE_XMLRPC is required by Ruby CLI, ONE_URL is used by Ansible" >&2
     exit 1
 fi
 
+ONE_AUTH="${ONE_USERNAME:-oneadmin}:${ONE_PASSWORD:-}"
+
+# Validate required environment variables
 if [[ -z "$ONE_USERNAME" || -z "$ONE_PASSWORD" ]]; then
     echo "ERROR: ONE_USERNAME and ONE_PASSWORD environment variables are not set" >&2
     echo "Please refer to the 'Prerequisites' section in README.md for setup instructions" >&2
@@ -25,9 +26,12 @@ fi
 detect_server_version() {
     local endpoint="$1"
     local auth="$2"
-    
-    # Create temporary XML-RPC request
-    local request=$(cat <<EOF
+
+    # Create temporary XML-RPC request.
+    # Declared before assignment (SC2155): a combined `local x=$(...)` would mask
+    # the command substitution's exit status behind local's own success.
+    local request
+    request=$(cat <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <methodCall>
     <methodName>one.system.version</methodName>
@@ -47,7 +51,7 @@ EOF
         -d "$request" \
         "$endpoint" 2>/dev/null); then
         echo "ERROR: Failed to connect to OpenNebula server at $endpoint" >&2
-        echo "Check your network connection and ONE_URL setting" >&2
+        echo "Check your network connection and ONE_XMLRPC/ONE_URL setting" >&2
         return 1
     fi
 
@@ -77,7 +81,9 @@ version_to_cli_spec() {
     # Extract major.minor from version (e.g., "OpenNebula 6.10.4" -> "6.10")
     local major_minor
     if major_minor=$(echo "$version" | grep -o '[0-9]*\.[0-9]*' | head -1); then
-        echo "~> ${major_minor}.0"
+        # e.g. server 7.0.4 -> ~> 7.0 -> gem 7.4.0; server 6.10.4 -> ~> 6.10 -> gem 6.10.x
+        # Not ~> 7.0.0 (that pins patch: 7.0.x only).
+        echo "~> ${major_minor}"
         return 0
     else
         echo "ERROR: Could not extract major.minor version from: $version" >&2
@@ -95,6 +101,24 @@ version_to_cli_version() {
         return 0
     else
         echo "ERROR: Could not extract major.minor version from: $version" >&2
+        return 1
+    fi
+}
+
+# Function to convert server version to PyONE version specifier
+version_to_pyone_spec() {
+    local version="$1"
+    # Extract major.minor.patch from version (e.g., "OpenNebula 6.10.4" -> "6.10.4")
+    # PyONE uses semantic versioning: pyone 6.10.x is compatible with OpenNebula 6.10.x
+    local full_version
+    if full_version=$(echo "$version" | grep -o '[0-9]*\.[0-9]*\.[0-9]*' | head -1); then
+        # Extract major.minor for compatible release spec
+        local major_minor
+        major_minor=$(echo "$full_version" | grep -o '[0-9]*\.[0-9]*' | head -1)
+        echo "~=${major_minor}.0"
+        return 0
+    else
+        echo "ERROR: Could not extract version from: $version" >&2
         return 1
     fi
 }
@@ -120,30 +144,41 @@ case "${1:-version}" in
             exit 1
         fi
         ;;
+    "pyone-spec")
+        server_version=$(detect_server_version "$ONE_ENDPOINT" "$ONE_AUTH")
+        if [[ $? -eq 0 ]]; then
+            version_to_pyone_spec "$server_version"
+        else
+            exit 1
+        fi
+        ;;
     "help"|"--help"|"-h")
         echo "OpenNebula Server Version Detection"
         echo ""
         echo "Usage: $0 [command]"
         echo ""
         echo "Commands:"
-        echo "  version     Show full server version (default)"
-        echo "  cli-spec    Show CLI gem version specifier for compatibility"
-        echo "  cli-version Show CLI version number for compatibility"
-        echo "  help        Show this help message"
+        echo "  version      Show full server version (default)"
+        echo "  cli-spec     Show CLI gem version specifier for compatibility"
+        echo "  cli-version  Show CLI version number for compatibility"
+        echo "  pyone-spec   Show PyONE pip version specifier for compatibility"
+        echo "  help         Show this help message"
         echo ""
         echo "Environment Variables:"
-        echo "  ONE_URL      OpenNebula XML-RPC endpoint (required)"
+        echo "  ONE_XMLRPC   OpenNebula XML-RPC endpoint (required by Ruby CLI)"
+        echo "  ONE_URL      OpenNebula XML-RPC endpoint (used by Ansible)"
         echo "  ONE_USERNAME OpenNebula username (required)"
         echo "  ONE_PASSWORD OpenNebula password (required)"
         echo ""
         echo "Examples:"
-        echo "  $0                    # Show server version"
-        echo "  $0 cli-spec          # Show gem version spec (~> 6.10.0)"
-        echo "  $0 cli-version       # Show version number (6.10)"
+        echo "  $0                    # Show server version (OpenNebula 6.10.4)"
+        echo "  $0 cli-spec           # Show gem version spec (~> 6.10 for server 6.10.4)"
+        echo "  $0 cli-version        # Show version number (6.10)"
+        echo "  $0 pyone-spec         # Show PyONE version spec (~=6.10.0 for server 6.10.4)"
         ;;
     *)
         echo "ERROR: Unknown command: $1" >&2
         echo "Use '$0 help' for usage information" >&2
         exit 1
         ;;
-esac 
+esac
