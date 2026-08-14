@@ -123,7 +123,7 @@ HISTCONTROL=ignoredups:erasedups
 # This is one of four channels that carry the same env file; the others are
 # /etc/profile.d (login shells), ~/.bashrc (interactive non-login) and
 # /etc/environment (processes started with a clean environment).
-ONE_ENV=/home/vscode/.config/opennebula/env.sh
+ONE_ENV="${HOME:-/home/vscode}/.config/opennebula/env.sh"
 # shellcheck source=/dev/null
 [ -f "$ONE_ENV" ] && . "$ONE_ENV"
 BASH_ENV_EOF
@@ -151,7 +151,21 @@ SHELL
 # it neither expands it nor objects to the ':' - whereas a backslash is kept
 # literally and produces "Invalid \escape", silently breaking the whole label.
 # Verified by building both forms and inspecting the result.
+# The parent image's own devcontainer.metadata is RESTATED here, because a
+# Docker LABEL replaces a key rather than appending to it. Omitting these silently
+# dropped `remoteUser: vscode` from mcr.microsoft.com/devcontainers/base, so every
+# lifecycle command and terminal ran as root: credentials landed in /root, while
+# the BASH_ENV hook and /etc/profile.d looked under the vscode home, and
+# ONE_AUTH pointed at a 0600 root-owned file no ordinary user could read.
+#
+# If the parent adds metadata that matters, restate it here too - inheritance is
+# not automatic.
 LABEL devcontainer.metadata='[{ \
+  "id": "ghcr.io/devcontainers/features/common-utils:2" \
+}, { \
+  "id": "ghcr.io/devcontainers/features/git:1" \
+}, { \
+  "remoteUser": "vscode", \
   "containerEnv": { \
     "BASH_ENV": "/usr/local/etc/devcontainer-bash-env.sh", \
     "ANSIBLE_FORCE_COLOR": "1", \
