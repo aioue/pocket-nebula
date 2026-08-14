@@ -11,8 +11,6 @@ name: base-image
 
 on:
   push:
-    tags:
-      - 'v*'
     branches:
       - main
     paths:
@@ -22,7 +20,29 @@ on:
     paths:
       - 'images/base/**'
       - '.github/workflows/base-image.yml'
+
+  # Called by release.yml once release-please has cut a tag.
+  #
+  # This is deliberately NOT a `push: tags:` trigger. release-please creates the
+  # tag using the default GITHUB_TOKEN, and GitHub does not raise workflow events
+  # for actions taken with that token - a recursion guard. A tag trigger
+  # therefore never fires for an automated release, and the image is silently
+  # never published. Being called directly as a reusable workflow sidesteps the
+  # event system entirely, with no PAT to create and rotate.
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish, e.g. v1.2.0'
+        type: string
+        required: true
+
+  # Manual re-publish of a specific tag, for recovery.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and publish, e.g. v1.2.0'
+        type: string
+        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -38,6 +58,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # When invoked for a release, build the tagged tree - not main, which
+          # may already have moved on.
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -62,10 +86,14 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # semver patterns move :v1 and :v1.2 as well as writing :v1.2.3, which
           # is what lets consumers pin a major and still get fixes.
+          # value= makes the semver patterns read the explicit input instead of
+          # github.ref, which points at the caller's branch in a reusable workflow.
+          # When no tag is supplied (a plain push to main) the semver entries are
+          # skipped and only the branch/sha tags are produced.
           tags: |
-            type=semver,pattern=v{{major}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=semver,pattern=v{{version}}
+            type=semver,pattern=v{{major}},value=${{ inputs.tag }}
+            type=semver,pattern=v{{major}}.{{minor}},value=${{ inputs.tag }}
+            type=semver,pattern=v{{version}},value=${{ inputs.tag }}
             type=ref,event=branch
             type=sha,format=short
 
