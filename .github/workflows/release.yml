@@ -86,8 +86,14 @@ jobs:
           echo "Release PR is #${PR}"
 
           SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
-          runs=$(gh api "/repos/${REPO}/actions/runs?head_sha=${SHA}&status=action_required" \
-                   --jq '.workflow_runs[].id' 2>/dev/null || true)
+          # A parked run reports status=completed with conclusion=action_required,
+          # NOT status=action_required - so filtering on status finds nothing.
+          # Query unfiltered and select on either field.
+          runs=$(gh api "/repos/${REPO}/actions/runs?head_sha=${SHA}" \
+                   --jq '.workflow_runs[]
+                         | select(.status == "action_required"
+                                  or .conclusion == "action_required")
+                         | .id' 2>/dev/null || true)
           for id in $runs; do
             echo "Approving queued run ${id}"
             gh api -X POST "/repos/${REPO}/actions/runs/${id}/approve" >/dev/null || true
