@@ -521,7 +521,7 @@ echo "🔍 Verifying installations..."
 echo "  ✓ Ansible version: $(ansible --version | head -1)"
 echo "  ✓ Ansible-lint version: $(ansible-lint --version | head -1)"
 echo "  ✓ Ruff version: $(ruff --version)"
-echo "  ✓ Pilfer version: $(uv tool list 2>/dev/null | awk '/^pilfer /{print $2; exit}')"
+echo "  ✓ Pilfer version: $(pilfer --version 2>/dev/null || echo unknown)"
 echo "  ✓ ShellCheck version: $(shellcheck --version | grep 'version:')"
 PYONE_INSTALLED_VERSION=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('pyone'))" 2>/dev/null || echo "unknown")
 echo "  ✓ PyONE version: $PYONE_INSTALLED_VERSION"

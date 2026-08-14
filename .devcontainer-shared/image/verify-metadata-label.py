@@ -18,7 +18,7 @@ Accepts either shape, so the same check works in CI and against a local build:
 import json
 import sys
 
-REQUIRED_KEYS = ("customizations", "mounts", "containerEnv")
+REQUIRED_KEYS = ("customizations", "mounts", "containerEnv", "remoteUser")
 LABEL = "devcontainer.metadata"
 
 
@@ -71,7 +71,11 @@ def main() -> int:
         if not isinstance(parsed, list) or not parsed:
             print(f"FAIL: image[{name}] devcontainer.metadata must be a non-empty array", file=sys.stderr)
             return 1
-        missing = [k for k in REQUIRED_KEYS if k not in parsed[0]]
+        # The array carries one object per contributing layer - inherited
+        # feature ids, the parent's remoteUser, then ours - so a required key may
+        # legitimately live in any entry, not just the first.
+        present = set().union(*(e.keys() for e in parsed if isinstance(e, dict)))
+        missing = [k for k in REQUIRED_KEYS if k not in present]
         if missing:
             print(f"FAIL: image[{name}] devcontainer.metadata missing {missing}", file=sys.stderr)
             return 1
