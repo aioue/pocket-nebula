@@ -1,0 +1,93 @@
+name: base-image
+
+# Build and publish the shared OpenNebula devcontainer base image.
+#
+# Consumers pin the MAJOR tag (e.g. :v1), so pushing v1.3.0 moves :v1 and every
+# project picks the change up on its next ordinary rebuild - no file edit, and
+# no second rebuild to "apply" it. Cut a new major tag for breaking changes.
+#
+# Multi-arch because development happens on Apple silicon while the servers are
+# x86_64; a single-arch image would silently emulate or fail on one of them.
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'images/base/**'
+      - '.github/workflows/base-image.yml'
+  pull_request:
+    paths:
+      - 'images/base/**'
+      - '.github/workflows/base-image.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/pocket-nebula-base
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Only authenticate for pushes. Pull requests from forks have no package
+      # write access, so they build-and-discard as a syntax check.
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # semver patterns move :v1 and :v1.2 as well as writing :v1.2.3, which
+          # is what lets consumers pin a major and still get fixes.
+          tags: |
+            type=semver,pattern=v{{major}}
+            type=semver,pattern=v{{major}}.{{minor}}
+            type=semver,pattern=v{{version}}
+            type=ref,event=branch
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: images/base
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The whole inheritance mechanism depends on this label surviving the
+      # build. If it is missing or malformed the merge silently does nothing,
+      # so fail here rather than discovering it on someone's next rebuild.
+      - name: Verify devcontainer.metadata label
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          TAG="$(echo '${{ steps.meta.outputs.tags }}' | head -1)"
+          echo "Inspecting $TAG"
+          docker buildx imagetools inspect "$TAG" --format '{{ json .Image }}' \
+            | python3 images/base/verify-metadata-label.py

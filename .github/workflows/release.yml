@@ -1,0 +1,48 @@
+name: release
+
+# Automated releases driven by Conventional Commit messages.
+#
+# release-please watches commits on main and maintains a standing "release PR"
+# containing the generated CHANGELOG.md and a version bump. Merging that PR
+# creates the git tag and GitHub release. The tag then triggers base-image.yml,
+# which builds and publishes the image and moves the :v<major> tag consumers pin.
+#
+# So the full hands-free chain is:
+#   conventional commit -> release PR -> merge -> tag -> image published -> consumers
+#   pick it up on their next ordinary rebuild.
+#
+# Version bumps follow the commit types: fix -> patch, feat -> minor,
+# "!" or BREAKING CHANGE -> major (which is deliberate friction, since a major
+# bump means every consumer must edit its FROM line).
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# Never run two release PR updates at once - they would fight over the branch.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Summarise
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          echo "Released ${{ steps.release.outputs.tag_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "base-image.yml will now publish the image for this tag." >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,56 @@
+version: 2
+
+# Keeps the shared base image current with no human in the loop.
+#
+# Paired with .github/workflows/dependabot-auto-merge.yml, which approves and
+# auto-merges the safe update types. A merged bump lands on main as a
+# Conventional Commit, which release-please turns into a release PR, which on
+# merge tags and publishes a new image - so consumers pick the update up on
+# their next ordinary rebuild without anyone touching a file.
+#
+# Commit prefixes are chosen to match release-please's changelog sections, so
+# dependency bumps appear under "Dependencies" rather than being hidden as chores.
+
+updates:
+  # Base image and the pinned uv stage in images/base/Dockerfile.
+  # uv is declared as a named FROM stage precisely so it is visible here.
+  - package-ecosystem: docker
+    directory: /images/base
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
+      - docker
+    groups:
+      # One PR for all Docker bumps, so a routine week is a single auto-merge
+      # rather than several.
+      docker-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Actions used by the release, image and auto-merge workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch

@@ -1,0 +1,61 @@
+name: dependabot-auto-merge
+
+# Hands-free dependency updates.
+#
+# Approves and enables auto-merge on Dependabot PRs for the update types that
+# are safe to take unattended. GitHub then merges each PR once its required
+# checks pass - so a broken base-image build blocks the merge rather than
+# shipping a broken image.
+#
+# MAJOR updates are deliberately excluded. A major bump of the devcontainer base
+# image or of uv can change behaviour in ways that need a human to look, and the
+# cost of missing that is every project rebuilding onto a broken image.
+#
+# Requires, on the repository:
+#   Settings > General > "Allow auto-merge"
+#   a branch protection / ruleset on main requiring the base-image check,
+#   otherwise auto-merge lands the PR immediately with nothing verified.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    # pull_request_target runs with write access against the BASE repo, so it is
+    # restricted to Dependabot's own PRs and never checks out the PR's code.
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Flag major updates for review
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        run: |
+          gh pr comment "$PR_URL" --body \
+            "Major version bump - not auto-merged. Every consumer rebuilds onto this image, so please review before merging."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
