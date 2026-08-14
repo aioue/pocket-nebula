@@ -121,10 +121,10 @@ ansible --version
 
 To have your own repo consume this shared layer:
 
-1. Copy `scripts/sync-common.sh` to `your-repo/.devcontainer/sync-common.sh`. This is the only file
+1. Copy `.devcontainer-shared/scripts/sync-common.sh` to `your-repo/.devcontainer/sync-common.sh`. This is the only file
    you ever copy — it changes almost never.
 2. Add `.devcontainer/common.ref` containing the ref to track (a tag such as `v1.2.0`, or `main`).
-3. Copy the templates from `templates/` to `.devcontainer/` and edit `site.env`.
+3. Copy the templates from `.devcontainer-shared/templates/` to `.devcontainer/` and edit `site.env`.
 4. Point `.devcontainer/Dockerfile` at `FROM ghcr.io/aioue/pocket-nebula-base:v1`.
 5. In `devcontainer.json`, set `"initializeCommand": ".devcontainer/sync-common.sh"` and keep only
    `name`, `build`, `runArgs` and `features` — everything else comes from the image.
@@ -153,11 +153,12 @@ skipped when already in sync; a branch name is re-fetched on every container sta
 ## Layout
 
 ```
-devcontainer-common/     Source of truth for the shared scripts (vendored into consumers)
-images/base/             The shared base image and its devcontainer.metadata label
-scripts/sync-common.sh   The bootstrap file each consumer copies once
-templates/               site.env / devcontainer.env / .dockerignore starting points
-.devcontainer/           This repo's own consumer config (a worked example)
+.devcontainer/                    This repo's own consumer config (a worked example)
+.devcontainer-shared/             Everything that serves the shared layer to other repos
+  common/                         Source of truth for the shared scripts (vendored into consumers)
+  image/                          The base image and its devcontainer.metadata label
+  scripts/sync-common.sh          The bootstrap file each consumer copies once
+  templates/                      site.env / devcontainer.env / .dockerignore starting points
 ```
 
 ### Shared scripts

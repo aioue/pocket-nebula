@@ -60,7 +60,7 @@ except json.JSONDecodeError as e:
     raise SystemExit(0)
 
 # What the base image's devcontainer.metadata supplies. Kept in step with
-# images/base/Dockerfile in pocket-nebula.
+# .devcontainer-shared/image/Dockerfile in pocket-nebula.
 IMAGE_EXTENSIONS = {
     "redhat.ansible", "charliermarsh.ruff", "timonwong.shellcheck",
     "docker.docker", "DavidAnson.vscode-markdownlint",

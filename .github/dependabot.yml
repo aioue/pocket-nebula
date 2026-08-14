@@ -12,10 +12,10 @@ version: 2
 # dependency bumps appear under "Dependencies" rather than being hidden as chores.
 
 updates:
-  # Base image and the pinned uv stage in images/base/Dockerfile.
+  # Base image and the pinned uv stage in .devcontainer-shared/image/Dockerfile.
   # uv is declared as a named FROM stage precisely so it is visible here.
   - package-ecosystem: docker
-    directory: /images/base
+    directory: /.devcontainer-shared/image
     schedule:
       interval: weekly
       day: monday

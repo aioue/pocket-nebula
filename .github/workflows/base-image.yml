@@ -14,11 +14,11 @@ on:
     branches:
       - main
     paths:
-      - 'images/base/**'
+      - '.devcontainer-shared/image/**'
       - '.github/workflows/base-image.yml'
   pull_request:
     paths:
-      - 'images/base/**'
+      - '.devcontainer-shared/image/**'
       - '.github/workflows/base-image.yml'
 
   # Called by release.yml once release-please has cut a tag.
@@ -100,7 +100,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: images/base
+          context: .devcontainer-shared/image
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -118,4 +118,4 @@ jobs:
           TAG="$(echo '${{ steps.meta.outputs.tags }}' | head -1)"
           echo "Inspecting $TAG"
           docker buildx imagetools inspect "$TAG" --format '{{ json .Image }}' \
-            | python3 images/base/verify-metadata-label.py
+            | python3 .devcontainer-shared/image/verify-metadata-label.py
