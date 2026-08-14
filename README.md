@@ -1,408 +1,205 @@
+[![base image](https://github.com/aioue/pocket-nebula/actions/workflows/base-image.yml/badge.svg)](https://github.com/aioue/pocket-nebula/actions/workflows/base-image.yml)
+[![release](https://github.com/aioue/pocket-nebula/actions/workflows/release.yml/badge.svg)](https://github.com/aioue/pocket-nebula/actions/workflows/release.yml)
+[![latest release](https://img.shields.io/github/v/release/aioue/pocket-nebula?sort=semver)](https://github.com/aioue/pocket-nebula/releases)
+[![ghcr image](https://img.shields.io/badge/ghcr.io-pocket--nebula--base-2496ED?logo=docker&logoColor=white)](https://github.com/aioue/pocket-nebula/pkgs/container/pocket-nebula-base)
+[![dev container](https://img.shields.io/badge/dev%20container-ready-1f425f?logo=visualstudiocode&logoColor=white)](https://containers.dev/)
+[![license](https://img.shields.io/github/license/aioue/pocket-nebula)](LICENSE)
+
 # Pocket Nebula ✨→👖
 
-A Skeleton Dev Container preconfigured with the OpenNebula CLI, and Ansible
+A dev container for working against [OpenNebula](https://opennebula.io/) with Ansible — and a
+**shared devcontainer layer** that several projects can consume without copy-pasting between them.
 
-[OpenNebula](https://opennebula.io/) is an Open Source Cloud & Edge Computing Platform.
+Use it two ways:
 
-A [development container](https://containers.dev/) allows you to use a container as an isolated, full-featured development environment.
+1. **As a skeleton.** Clone it, point it at your OpenNebula, start working.
+2. **As an upstream.** Have your own repos pull the shared layer from here, so an improvement made
+   in one project reaches the others.
 
-Pocket Nebula provides an instant isolated environment for OpenNebula operations (host and guest config and management).
+---
 
-## Overview
+## Why this exists
 
-This repository provides a clean starting point for OpenNebula automation projects. It includes:
+`devcontainer.json` has no `extends`, and the requests for one
+([spec#22](https://github.com/devcontainers/spec/issues/22),
+[spec#716](https://github.com/devcontainers/spec/issues/716),
+[vscode-remote-release#11421](https://github.com/microsoft/vscode-remote-release/issues/11421))
+are all still open. So teams running several similar projects copy a `.devcontainer/` between
+repos and it quietly diverges — each repo ends up ahead of the others in different places.
 
-- **DevContainer**: Complete development environment with Ansible and OpenNebula tools
-- **Ansible Structure**: Basic inventory and playbook examples
-- **Documentation**: Setup guides and usage examples
+This repo solves that with the two mechanisms the spec *does* provide.
 
-## Complete Setup Guide
+| Layer | What it holds | How a change reaches consumers |
+|---|---|---|
+| **A. Base image** | apt packages, `uv`, shell history wiring, and a `devcontainer.metadata` label carrying shared mounts, extensions, settings and lifecycle hooks | `FROM ghcr.io/aioue/pocket-nebula-base:v1` — one ordinary rebuild |
+| **B. Shared scripts** | `setup.sh` and helpers, vendored into each repo at `.devcontainer/common/` | `initializeCommand` sync, which runs **before the build** — same rebuild, no second one |
+| **C. Per-repo config** | `name`, `build`, `runArgs`, `features` — the things that genuinely differ | edited by hand; a drift checker warns about duplication |
 
-This guide walks you through setting up Pocket Nebula from scratch to running your first automation.
+The key detail is ordering. `initializeCommand` runs **on the host, before the image is built**, so
+a shared-layer change is fetched and in place for the build and `postCreateCommand` of the *same*
+create cycle. You never rebuild, notice drift, and have to rebuild again.
 
-### Step 1: Prerequisites
+Layer A works because the dev containers spec merges an image's `devcontainer.metadata` label with
+each repo's `devcontainer.json` — with the repo's file taking precedence. That is `extends` in
+everything but name.
 
-Before starting, ensure you have:
+---
 
-1. **Git**: For cloning the repository
-2. **VS Code**: With the [Dev Containers Extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-3. **Docker**: For running the development container
-4. **OpenNebula Access**: Your OpenNebula instance URL and credentials
-5. **SSH Keys**: For Ansible host access (optional but recommended)
+## Using it as a skeleton
 
-### Step 2: Clone and Setup
+### Prerequisites
 
-**Run these commands on your HOST system (not in the container):**
+- Docker (Desktop, Colima, or equivalent)
+- VS Code or Cursor with the Dev Containers extension
+- Credentials for an OpenNebula deployment
 
-```bash
-# Clone the repository
-git clone https://github.com/your-username/pocket-nebula.git
-cd pocket-nebula
+### 1. Provide credentials on the host
 
-# Verify the repository structure
-ls -la
-# Expected: .devcontainer/, inventory/, roles/, README.md, etc.
-```
+Credentials live in `~/.one/` on your machine and are bind-mounted **read-only** into the
+container. They are never copied into the repo and never written to the workspace.
 
-**⚠️ Important**: If you see a prompt like `vscode ➜ /workspaces/pocket-nebula (main) $`, you're already inside the dev container! Exit to your host system first.
-
-### Step 3: Configure Environment Variables
-
-**Run these commands on your HOST system (not in the container):**
-
-Set up your OpenNebula credentials on your host system:
-
-```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export ONE_USERNAME=your-opennebula-username
-export ONE_PASSWORD=your-opennebula-password
-export ONE_URL=https://your-opennebula-host/RPC2          # RPC API endpoint
-export ONEFLOW_URL=https://your-opennebula-host:2474      # OneFlow endpoint (optional)
-
-# Optional: Override CLI version (see CLI Version Management section)
-export OPENNEBULA_CLI_VERSION_OVERRIDE="~> 6.10.0"
-
-# Optional: Ansible vault password for encrypted files
-export ANSIBLE_VAULT_PASSWORD=your-vault-password
-
-# Reload your shell profile
-source ~/.bashrc  # or ~/.zshrc
-```
-
-### Step 4: Setup OpenNebula CLI (Optional)
-
-**Run these commands on your HOST system (not in the container):**
-
-For OpenNebula CLI authentication:
+For each deployment, create a matching pair, where `<SUFFIX>` is a short label of your choosing:
 
 ```bash
-# Create OpenNebula credentials directory
 mkdir -p ~/.one
 
-# Create authentication file
-echo "your-username:your-password" > ~/.one/one_auth
-chmod 600 ~/.one/one_auth
+# Credentials, in user:password form
+printf 'myuser:mypassword' > ~/.one/one_auth_PROD
+chmod 600 ~/.one/one_auth_PROD
 
-# Verify the file was created
-ls -la ~/.one/
+# Endpoints, as shell variable assignments
+cat > ~/.one/one_url_PROD <<'EOF'
+ONE_URL=https://cloud.example.com/RPC2
+ONE_XMLRPC=https://cloud.example.com/RPC2
+ONEFLOW_URL=https://cloud.example.com:2474
+EOF
 ```
 
-### Step 5: Setup Ansible Vault (Recommended)
-
-**Run these commands on your HOST system (not in the container):**
-
-For encrypted sensitive data:
+Optionally, for encrypted Ansible content:
 
 ```bash
-# Create vault directory
 mkdir -p ~/.ansible-vault
-
-# Create vault password file
-echo "your-vault-password" > ~/.ansible-vault/.vault-file
-chmod 600 ~/.ansible-vault/.vault-file
-
-# Verify the setup
-ls -la ~/.ansible-vault/
+printf 'my-vault-password' > ~/.ansible-vault/vault-password
+chmod 600 ~/.ansible-vault/vault-password
 ```
 
-### Step 6: Launch the DevContainer
+### 2. Select the deployment
 
-**Run these commands on your HOST system (not in the container):**
+Set the suffix in `.devcontainer/site.env`:
 
 ```bash
-# Open VS Code in the project directory
-code .
-
-# In VS Code:
-# 1. Press Ctrl+Shift+P (Cmd+Shift+P on Mac)
-# 2. Type "Dev Containers: Reopen in Container"
-# 3. Select the command
-# 4. Wait for the container to build (first time may take 5-10 minutes)
+OPENNEBULA_DEPLOYMENT_ENVIRONMENT=PROD
 ```
 
-**✅ Success**: You'll know you're in the container when you see the prompt change to `vscode ➜ /workspaces/pocket-nebula (main) $`
+This is deliberately a committed, per-repo setting rather than an interactive prompt. If several
+deployments share one OpenNebula instance, a mis-selection would silently operate as the *wrong
+user* instead of failing — so the choice is pinned per repo. Set
+`ONE_ALLOW_INTERACTIVE_SELECT=1` if you would rather be asked each time.
 
-### Step 7: Verify the Setup
+### 3. Open in the container
 
-**Run these commands INSIDE the dev container (you should see `vscode ➜ /workspaces/pocket-nebula (main) $`):**
+Open the folder in VS Code or Cursor and choose **Reopen in Container**. On first create it will:
 
-Once the container is running, verify everything is working:
+- refresh `.devcontainer/common/` from this repo (falling back to the committed copy if offline)
+- select credentials and export them through four channels, so login shells, interactive
+  terminals, agent shells and bare subprocesses all see the same values
+- detect the OpenNebula server version and install a matching CLI gem and PyONE
+- install Ansible, ansible-lint, ruff and pilfer with `uv`
+
+### 4. Check it works
 
 ```bash
-# Check environment variables are loaded
-env | grep ONE
-# Expected output:
-# ONE_USERNAME=your-username
-# ONE_PASSWORD=your-password
-# ONE_URL=https://your-opennebula-host/RPC2
-# ONEFLOW_URL=https://your-opennebula-host:2474
-
-# Test OpenNebula CLI
-onevm list
-# Should show your VMs or an empty list
-
-# Test Ansible installation
+onevm list                     # OpenNebula CLI
+onehost list                   # exercises a different CLI code path
 ansible --version
-# Should show Ansible version and configuration
-
-# Test ansible-lint
-ansible-lint --version
-# Should show ansible-lint version
-
-# Check mounted directories
-ls -la ~/.ssh/     # Should show your SSH keys
-ls -la ~/.one/     # Should show OpenNebula credentials
-ls -la ~/.ansible-vault/  # Should show vault files
+.devcontainer/common/show-opennebula-config.sh
 ```
 
-### Step 8: Run Your First Automation
+---
 
-**Run these commands INSIDE the dev container (you should see `vscode ➜ /workspaces/pocket-nebula (main) $`):**
+## Using it as an upstream
 
-```bash
-# View the available inventory
-ansible-inventory --inventory inventory/opennebula --graph
+To have your own repo consume this shared layer:
 
-# Run the example playbook
-ansible-playbook --inventory inventory/opennebula catalog-guests.yml
+1. Copy `scripts/sync-common.sh` to `your-repo/.devcontainer/sync-common.sh`. This is the only file
+   you ever copy — it changes almost never.
+2. Add `.devcontainer/common.ref` containing the ref to track (a tag such as `v1.2.0`, or `main`).
+3. Copy the templates from `templates/` to `.devcontainer/` and edit `site.env`.
+4. Point `.devcontainer/Dockerfile` at `FROM ghcr.io/aioue/pocket-nebula-base:v1`.
+5. In `devcontainer.json`, set `"initializeCommand": ".devcontainer/sync-common.sh"` and keep only
+   `name`, `build`, `runArgs` and `features` — everything else comes from the image.
 
-# Check the playbook output
-cat catalog-guests.yml
-```
+Run a rebuild and `.devcontainer/common/` is populated. Commit it: it is vendored deliberately, so
+a fresh clone works with no extra steps and no network.
 
-## 🔧 CLI Tools Version Management
+### Version pinning
 
-This devcontainer automatically detects your OpenNebula server version and installs compatible CLI tools. 
+Consumers pin the **major** image tag (`:v1`), so ordinary rebuilds pick up fixes with no file
+edit. A breaking change gets a new major tag, which every consumer must adopt explicitly.
 
-### Automatic Detection
+`common.ref` is separate, and controls the scripts. A tag or SHA is treated as immutable and
+skipped when already in sync; a branch name is re-fetched on every container start.
 
-The devcontainer uses the `one.system.version` XML-RPC method to detect your server version:
+### Controlling the sync
 
-```shell
-# Check what version was detected
-.devcontainer/detect-opennebula-version.sh
+| `POCKET_NEBULA_SYNC` | Behaviour |
+|---|---|
+| unset / `prompt` | Ask before applying, when a terminal is attached; apply silently otherwise |
+| `auto` | Always apply without asking |
+| `never` | Never apply; keep the vendored copy |
 
-# See the CLI version specifier that would be used
-.devcontainer/detect-opennebula-version.sh cli-spec
-```
+---
 
-### Manual Override
-
-You can override the automatic detection by setting `OPENNEBULA_CLI_VERSION_OVERRIDE` in your host environment or `.devcontainer/devcontainer.env`:
-
-```bash
-# Force install 6.8.x compatible tools
-OPENNEBULA_CLI_VERSION_OVERRIDE="~> 6.8.0"
-
-# Install exact version
-OPENNEBULA_CLI_VERSION_OVERRIDE="6.10.0"
-
-# Install latest 7.x tools (if working with newer servers)
-OPENNEBULA_CLI_VERSION_OVERRIDE="~> 7.0.0"
-```
-
-*After changing the override, rebuild your devcontainer for the changes to take effect.*
-
-### Version Detection Commands
-
-```shell
-# Show full server version
-.devcontainer/detect-opennebula-version.sh
-
-# Show CLI gem version specifier for compatibility
-.devcontainer/detect-opennebula-version.sh cli-spec
-
-# Show CLI version number
-.devcontainer/detect-opennebula-version.sh cli-version
-
-# Show configuration status
-.devcontainer/show-opennebula-config.sh
-```
-
-### Supported Version Detection
-
-- **OpenNebula 6.x servers**: Compatible CLI tools (6.8, 6.10, etc.)
-- **OpenNebula 7.x servers**: Compatible CLI tools (7.0+)
-- **Fallback**: If detection fails, defaults to 6.10.x tools
-
-## Environment Variables
-
-The devcontainer supports multiple configuration sources in order of precedence:
-
-1. **OpenNebula Credentials**:
-   - `ONE_USERNAME` and `ONE_PASSWORD`: Your OpenNebula credentials
-   - `ONE_URL`: XML-RPC endpoint (required)
-   - `ONEFLOW_URL`: OneFlow endpoint (optional)
-   - `OPENNEBULA_CLI_VERSION_OVERRIDE`: Force specific CLI version (optional)
-
-2. **Ansible Configuration**:
-   - `ANSIBLE_VAULT_PASSWORD`: Vault password (highest priority)
-   - `~/.ansible-vault/.vault-file`: Vault password file (mounted from host)
-   - `vault_password_file` setting in `ansible.cfg`
-
-**Note**: The `OPENNEBULA_USER_PASS` variable in `devcontainer.env` is a template and not used by default. Your actual OpenNebula credentials should be set via the `ONE_USERNAME` and `ONE_PASSWORD` environment variables, which take precedence.
-
-## Host Mounts
-
-The container automatically mounts these directories from your host:
-
-- `~/.ssh` → `/home/vscode/.ssh` (SSH keys for Ansible)
-- `~/.one` → `/home/vscode/.one` (OpenNebula CLI credentials)
-- `~/.ansible-vault` → `/home/vscode/.ansible-vault` (Ansible vault files)
-
-## Usage Examples
-
-**All commands below should be run INSIDE the dev container (you should see `vscode ➜ /workspaces/pocket-nebula (main) $`):**
-
-### OpenNebula CLI Operations
-
-```bash
-# List all VMs
-onevm list
-
-# List networks
-onevnet list
-
-# List hosts
-onehost list
-
-# List users
-oneuser list
-
-# Get VM details
-onevm show <vm-id>
-
-# Create a VM from template
-onevm create <template-name>
-```
-
-### Ansible Automation
-
-```bash
-# View inventory structure
-ansible-inventory --inventory inventory/opennebula --graph
-
-# Run playbook with inventory
-ansible-playbook --inventory inventory/opennebula catalog-guests.yml
-
-# Run with vault password
-ansible-playbook --inventory inventory/opennebula your-playbook.yml --ask-vault-pass
-
-# Test connectivity to hosts
-ansible all --inventory inventory/opennebula -m ping
-
-# Run ad-hoc commands
-ansible all --inventory inventory/opennebula -m shell -a "uptime"
-```
-
-### Code Quality
-
-```bash
-# Lint your Ansible playbooks
-ansible-lint catalog-guests.yml
-
-# Check syntax
-ansible-playbook --syntax-check catalog-guests.yml
-
-# Dry run (check mode)
-ansible-playbook --inventory inventory/opennebula catalog-guests.yml --check
-```
-
-## Available Tools
-
-The devcontainer provides a complete development environment with:
-
-- **Ansible**: Latest version with pipx isolation
-- **ansible-lint**: Code quality and best practices checking
-- **OpenNebula CLI**: Ruby-based command-line tools
-- **pyone**: Python library for API integration
-- **VS Code Extensions**: Docker and Ansible support
-
-## Project Structure
+## Layout
 
 ```
-pocket-nebula/
-├── .devcontainer/          # Development container configuration
-│   ├── Dockerfile          # Container image definition
-│   ├── devcontainer.json   # VS Code devcontainer config
-│   ├── devcontainer.env    # Environment variables template
-│   └── setup.sh           # Container setup script
-├── inventory/              # Ansible inventory files
-│   └── opennebula/        # OpenNebula-specific inventory
-├── roles/                  # Ansible roles (add your own)
-│   └── requirements.yml    # Role dependencies
-├── catalog-guests.yml      # Example playbook
-└── ansible.cfg            # Ansible configuration
+devcontainer-common/     Source of truth for the shared scripts (vendored into consumers)
+images/base/             The shared base image and its devcontainer.metadata label
+scripts/sync-common.sh   The bootstrap file each consumer copies once
+templates/               site.env / devcontainer.env / .dockerignore starting points
+.devcontainer/           This repo's own consumer config (a worked example)
 ```
 
-## Customization
+### Shared scripts
 
-This is a skeleton repository. Customize it for your specific needs:
+| Script | Purpose |
+|---|---|
+| `setup.sh` | Credential selection, environment wiring, toolchain install |
+| `detect-opennebula-version.sh` | Asks the server its version, derives matching CLI and PyONE specs |
+| `opennebula-cli-tools-patch.sh` | Compatibility stubs for older CLI gems; self-retiring |
+| `show-opennebula-config.sh` | Prints resolved configuration and tests connectivity |
+| `shell-completions.sh` | Installs completions to `/etc/bash_completion.d/` |
+| `fix-cursor-python-extensions.sh` | Works around Cursor installing universal Python extension builds |
+| `check-devcontainer-drift.sh` | Warns when a repo duplicates what the image already provides |
 
-1. **Add Your Roles**: Create Ansible roles in the `roles/` directory
-2. **Configure Inventory**: Update `inventory/opennebula/opennebula.yml` with your hosts
-3. **Create Playbooks**: Add your automation playbooks
-4. **Environment Variables**: Set up your specific OpenNebula instance details
-5. **CA Certificates**: Add your own CA certificates if needed for your OpenNebula instance
+---
 
-## Troubleshooting
+## Releases
 
-### Common Issues
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/). `release-please`
+maintains a release PR with a generated `CHANGELOG.md`; merging it tags a release, which publishes
+a new base image and moves the `:v1` tag. Dependabot keeps the base image and actions current and
+auto-merges everything except major bumps.
 
-**SSL Certificate Issues**:
-```bash
-# Add your CA certificate to the Dockerfile if needed
-# Edit .devcontainer/Dockerfile and add:
-# COPY your-ca.crt /usr/local/share/ca-certificates/
-# RUN update-ca-certificates
+So the full chain is hands-free:
+
+```
+conventional commit → release PR → merge → tag → image published → consumers pick it up on rebuild
 ```
 
-**Authentication Problems**:
-```bash
-# Verify your OpenNebula credentials (run INSIDE container)
-env | grep ONE
+---
 
-# Test OpenNebula connection (run INSIDE container)
-onevm list
-```
+## Notes
 
-**Ansible Connection Issues**:
-```bash
-# Check SSH key permissions (run INSIDE container)
-ls -la ~/.ssh/
-
-# Test host connectivity (run INSIDE container)
-ansible all --inventory inventory/opennebula -m ping
-```
-
-**Vault Issues**:
-```bash
-# Verify vault password is accessible (run INSIDE container)
-ls -la ~/.ansible-vault/
-
-# Test vault password (run INSIDE container)
-echo $ANSIBLE_VAULT_PASSWORD
-```
-
-**Container Build Issues**:
-```bash
-# Rebuild the container from scratch (takes a few minutes)
-# In VS Code: Ctrl+Shift+P → "Dev Containers: Rebuild Container without Cache"
-```
-
-**Wrong Terminal Location**:
-- If you see `vscode ➜ /workspaces/pocket-nebula (main) $` but need to run host commands, exit the container first
-- If you don't see that prompt but need to run container commands, make sure you're in the dev container
-
-## Contributing
-
-This is a skeleton repository. Feel free to:
-
-- Fork and customize for your projects
-- Submit improvements to the devcontainer setup
-- Add example playbooks and roles
-- Improve documentation
+- **Credentials never enter the workspace.** The generated environment file lives at
+  `~/.config/opennebula/env.sh` inside the container. It is deliberately *not* in `.devcontainer/`,
+  which is a bind mount from the host — a plaintext password there would land on the host
+  filesystem inside a git repo, and `chmod 600` is not reliably enforced across the mount.
+- **`~/.one` is mounted read-only**, so the selected auth file is copied to `~/.one_auth` and
+  `ONE_AUTH` points there.
+- **Version detection is live.** The CLI gem and PyONE versions are derived from the running
+  server. `site.env` fallbacks apply only when the server is unreachable.
 
 ## License
 
-This project is provided as-is for educational and development purposes.
+[Apache 2.0](LICENSE)

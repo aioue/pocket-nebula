@@ -143,3 +143,17 @@ coverage/
 # Temporary folders
 **/tmp/
 **/temp/
+
+# Devcontainer environment files.
+# devcontainer.env is generated on the host by .devcontainer/sync-common.sh from
+# devcontainer.env.example, and may hold machine-specific values (proxies etc.),
+# so it is not tracked. The .example template IS tracked - docker fails hard when
+# --env-file points at a missing file, so the template must survive a fresh clone.
+# site.env is also tracked: it holds this project's shared-devcontainer config
+# (deployment suffix, version fallbacks) and contains no secrets.
+.devcontainer/devcontainer.env
+
+# Custom CA certificates are site-specific and must not be committed to this
+# public repo. CA handling was removed from the shared layer; if a project needs
+# a private CA, add it in that project's own .devcontainer/Dockerfile layer.
+*.crt

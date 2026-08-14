@@ -1,10 +1,18 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+// For format details, see https://aka.ms/devcontainer.json.
+//
+// This file is deliberately thin. Everything shared - mounts, extensions,
+// settings, containerEnv and the lifecycle hooks - is supplied by the base
+// image's devcontainer.metadata label and merged in automatically, with this
+// file taking precedence on any conflict.
+//
+// Only what the spec cannot put in image metadata belongs here: name, build,
+// runArgs, features. Those happen to be exactly the settings that legitimately
+// differ between projects, which is why the split works.
+//
+// See .devcontainer/common/ for the shared scripts (vendored, refreshed by
+// sync-common.sh before every build) and .devcontainer/site.env for local knobs.
 {
 	"name": "pocket-nebula",
-
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	//"image": "mcr.microsoft.com/devcontainers/base:jammy"
 
 	"build": {
 		// Path is relative to the devcontainer.json file.
@@ -15,58 +23,59 @@
 		}
 	},
 
-	// import Open Nebula Credentials from host
+	// Runs on the HOST, before the image is built. This ordering is the point:
+	// it refreshes .devcontainer/common/ from the pinned ref in common.ref so a
+	// shared-layer change lands in the same create cycle - never rebuild, spot
+	// drift, rebuild again. Falls back to the vendored copy when offline.
+	"initializeCommand": ".devcontainer/sync-common.sh",
+
+	"runArgs": [
+		// Load environment variables from devcontainer.env as a fallback, for
+		// cases where remoteEnv ${localEnv:...} does not resolve (e.g. Remote-SSH).
+		"--env-file=.devcontainer/devcontainer.env"
+	],
+
+	// OpenNebula credentials are NOT imported from the host environment. They are
+	// selected deterministically by common/setup.sh from the read-only ~/.one mount
+	// and exported through the env file. Importing ${localEnv:ONE_*} would let a
+	// host exporting another deployment's credentials - or an empty ONE_AUTH -
+	// shadow the selected values in every terminal, so the CLI would either
+	// authenticate as the wrong user or fail with "ONE_AUTH file not present".
+	// Only ANSIBLE_VAULT_PASSWORD is legitimately host-provided.
 	"remoteEnv": {
-		"ONE_USERNAME": "${localEnv:ONE_USERNAME}",
-		"ONE_PASSWORD": "${localEnv:ONE_PASSWORD}",
-		"ONE_URL": "${localEnv:ONE_URL}",
-		"ONE_XMLRPC": "${localEnv:ONE_XMLRPC}",
-		"ONEFLOW_URL": "${localEnv:ONEFLOW_URL}",
-		"OPENNEBULA_CLI_VERSION_OVERRIDE": "${localEnv:OPENNEBULA_CLI_VERSION_OVERRIDE}",
 		"ANSIBLE_VAULT_PASSWORD": "${localEnv:ANSIBLE_VAULT_PASSWORD}"
 	},
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/python:1": {
-			// "toolsToInstall": "flake8,autopep8,black,yapf,mypy,pydocstyle,pycodestyle,bandit,pipenv,virtualenv,pytest,pylint,argcomplete,pipx"
+			// Replaces the feature's large default tool list. virtualenv and
+			// argcomplete are all we need: the feature's real job here is providing
+			// pipx (and PIPX_BIN_DIR=/usr/local/py-utils/bin, where ruff.path points),
+			// while argcomplete supplies register-python-argcomplete for
+			// common/shell-completions.sh.
 			"toolsToInstall": "virtualenv, argcomplete"
-		}
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
 	},
 
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Lifecycle commands for better container management
-	"onCreateCommand": "echo '🏗️  Container created, preparing for setup...'",
-	"postCreateCommand": ".devcontainer/setup.sh",
-	"postStartCommand": "./.devcontainer/show-opennebula-config.sh && echo '🚀 Container started and ready for development!'",
-
 	"mounts": [
-		"type=bind,source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh",
-		"type=bind,source=${localEnv:HOME}/.one,target=/home/vscode/.one,readonly",
-		"type=bind,source=${localEnv:HOME}/.ansible-vault,target=/home/vscode/.ansible-vault,readonly",
+		// Shared mounts (~/.ssh, ~/.one, ~/.ansible-vault) come from the base image.
+		// Only the per-project history volume is named here, since it must not be
+		// shared between projects.
 		"source=pocket-nebula-bashhistory,target=/commandhistory,type=volume"
 	],
 
-	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
-			"extensions": [
-				"ms-azuretools.vscode-docker",
-				"redhat.ansible"
-			],
-			"settings": {
-				"terminal.integrated.defaultProfile.linux": "bash",
-				"files.watcherExclude": {
-					"**/.git/**": true,
-					"**/.ansible/**": true,
-					"**/roles/**/.git/**": true
-				},
-				"ansible.python.interpreterPath": "/usr/bin/python3",
-				"ansible.validation.lint.enabled": true,
-				"ansible.validation.lint.path": "/home/vscode/.local/bin/ansible-lint"
-			}
+			// WORKAROUND - see common/fix-cursor-python-extensions.sh for the full
+			// set of upstream links. Note we canNOT uninstall ms-python.vscode-python-envs:
+			// redhat.ansible declares it as a hard extensionDependency (alongside
+			// ms-python.python and redhat.vscode-yaml), so removing it degrades the
+			// Ansible extension. The postAttach script installs the platform-specific
+			// VSIXes instead, which is the actual fix.
+			"uninstallExtensions": [
+				"ms-python.vscode-pylance"
+			]
 		}
 	}
 

@@ -1,0 +1,4 @@
+# Ref of aioue/pocket-nebula that .devcontainer/common/ is vendored from.
+# A tag or full SHA is treated as immutable and skipped when already in sync;
+# a branch name is re-fetched on every container start.
+main
