@@ -1,0 +1,85 @@
+name: validate
+
+# Fast checks that run on EVERY pull request.
+#
+# This exists to give auto-merge something real to wait for. base-image.yml has a
+# `paths:` filter, so on a PR that does not touch the image it never runs - and a
+# required status check that never runs can never pass, which would deadlock
+# every release PR. This workflow has no path filter for exactly that reason.
+#
+# Keep it fast and deterministic. Anything slow belongs in base-image.yml.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Shell syntax and lint
+        run: |
+          set -euo pipefail
+          mapfile -t scripts < <(find . -name '*.sh' -not -path './.git/*' | sort)
+          # The git hooks have no .sh suffix but are shell.
+          for extra in .devcontainer-shared/common/githooks/pre-commit \
+                       .devcontainer-shared/common/githooks/commit-msg; do
+            [[ -f "$extra" ]] && scripts+=("$extra")
+          done
+          echo "Checking ${#scripts[@]} scripts"
+          for s in "${scripts[@]}"; do bash -n "$s"; done
+          # -x follows `source`d files; vault-guard.sh is sourced, not executed,
+          # so it has no shebang and is checked as part of its callers.
+          shellcheck -S warning -x "${scripts[@]}"
+
+      - name: YAML and JSON parse
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, sys
+          import yaml
+          bad = []
+          for p in pathlib.Path('.').rglob('*'):
+              if '.git/' in str(p) or not p.is_file():
+                  continue
+              try:
+                  if p.suffix in ('.yml', '.yaml'):
+                      list(yaml.safe_load_all(p.read_text()))
+                  elif p.suffix == '.json':
+                      json.loads(p.read_text())
+              except Exception as e:
+                  bad.append(f"{p}: {e}")
+          if bad:
+              print("\n".join(bad)); sys.exit(1)
+          print("all YAML and JSON parse")
+          PY
+
+      - name: Dockerfile builds
+        run: docker build -q -t validate-base:ci .devcontainer-shared/image
+
+      - name: devcontainer.metadata label is valid
+        run: |
+          docker image inspect validate-base:ci --format '{{ json .Config.Labels }}' \
+            | python3 .devcontainer-shared/image/verify-metadata-label.py
+
+      - name: Shared layer matches the vendored copy
+        run: |
+          set -euo pipefail
+          # The repo consumes its own shared layer. If these drift, consumers get
+          # something different from what CI actually tested.
+          if ! diff -r -q --exclude='.synced-ref' \
+                 .devcontainer-shared/common .devcontainer/common; then
+            echo "::error::.devcontainer/common is out of step with .devcontainer-shared/common"
+            echo "Run .devcontainer/sync-common.sh (or copy the files) and commit."
+            exit 1
+          fi
+          echo "vendored copy is in sync"
