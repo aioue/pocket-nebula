@@ -77,9 +77,50 @@ assemble_agents_md() {
     log "regenerated AGENTS.md (shared core$([[ -f "$site" ]] && printf ' + site rules'))"
 }
 
+# ---------------------------------------------------------------------------
+# Cursor rules
+# ---------------------------------------------------------------------------
+# The devcontainer is shared, so the rule describing it should be too - that file
+# had gone stale in both repos in different ways, which is the same drift this
+# layer exists to stop.
+#
+# Installed to .cursor/rules/ rather than kept under .devcontainer/, because
+# Cursor only reads rules from that directory. Project-specific rules living
+# alongside are never touched: only files carrying the managed marker are
+# written, and an unmanaged file of the same name is left alone with a warning.
+install_cursor_rules() {
+    local src="${COMMON_DIR}/cursor-rules"
+    local dest workspace f name existing
+    workspace="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    dest="${workspace}/.cursor/rules"
+
+    [[ -d "$src" ]] || return 0
+    mkdir -p "$dest"
+
+    for f in "$src"/*.mdc; do
+        [[ -f "$f" ]] || continue
+        name="$(basename "$f")"
+        existing="${dest}/${name}"
+        if [[ -f "$existing" ]] && ! head -10 "$existing" | grep -qF "$MANAGED_MARKER"; then
+            warn "${existing} is not managed by this layer - leaving it untouched."
+            continue
+        fi
+        if [[ -f "$existing" ]] && cmp -s "$f" "$existing"; then
+            continue
+        fi
+        cp "$f" "$existing"
+        log "installed Cursor rule ${name}"
+    done
+}
+
+sync_generated_files() {
+    assemble_agents_md
+    install_cursor_rules
+}
+
 # Assemble on any exit, including the early ones below. Replaced by a combined
 # trap once the temp directory exists and also needs cleaning up.
-trap assemble_agents_md EXIT
+trap sync_generated_files EXIT
 
 # ---------------------------------------------------------------------------
 # devcontainer.env bootstrap
@@ -138,7 +179,7 @@ fi
 
 TMPDIR_SYNC="$(mktemp -d 2>/dev/null || mktemp -d -t sync-common)"
 cleanup() { rm -rf "$TMPDIR_SYNC"; }
-trap 'cleanup; assemble_agents_md' EXIT
+trap 'cleanup; sync_generated_files' EXIT
 
 log "fetching ${UPSTREAM_REPO} @ ${REF}"
 if ! git clone --quiet --depth 1 --branch "$REF" "$UPSTREAM_REPO" "${TMPDIR_SYNC}/repo" 2>/dev/null; then

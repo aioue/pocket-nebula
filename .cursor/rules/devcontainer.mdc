@@ -1,0 +1,142 @@
+---
+description: How the shared devcontainer layer works - what is vendored, how credentials and environment are wired, and which parts must not be edited locally
+globs: .devcontainer/**
+alwaysApply: false
+---
+<!-- managed-by: pocket-nebula shared devcontainer layer -->
+<!-- Generated file. Edit cursor-rules/devcontainer.mdc upstream in pocket-nebula. -->
+
+# Shared devcontainer
+
+This project's `.devcontainer/` is a thin layer over the shared one in
+[pocket-nebula](https://github.com/aioue/pocket-nebula). Project-specific
+devcontainer facts live in this repo's own rules, not here.
+
+## What is editable
+
+| Path | Editable here? |
+|---|---|
+| `.devcontainer/common/` | **No.** Vendored; overwritten on the next container create. Edit it upstream |
+| `.devcontainer/devcontainer.json` | Yes - project-specific keys only |
+| `.devcontainer/site.env` | Yes - deployment suffix, version fallbacks, SSH aliases |
+| `.devcontainer/site/` | Yes - optional `pre-setup.sh` / `post-setup.sh` hooks |
+| `.devcontainer/common.ref` | Yes - which upstream ref to track |
+
+`AGENTS.md` and this rule file are also generated. Edit `AGENTS.core.md`
+upstream, or `.devcontainer/AGENTS.site.md` here.
+
+## Why devcontainer.json is thin
+
+`devcontainer.json` has no `extends` (devcontainers/spec#22, still open). Shared
+mounts, extensions, settings, `containerEnv` and lifecycle hooks instead come
+from the base image's `devcontainer.metadata` label, which the spec merges with
+this file - **this file wins on conflict**.
+
+Only what the spec cannot express in image metadata belongs here: `name`,
+`build`, `runArgs`, `features`. Do not re-declare shared mounts or extensions
+locally; `common/check-devcontainer-drift.sh` warns when you do, because a
+duplicate silently stops tracking the image.
+
+Lifecycle commands **concatenate** rather than override, so adding a
+`postStartCommand` here runs in addition to the image's, not instead of it.
+
+## Credential model
+
+- Deployment selection is **deterministic per repo**, not interactive:
+  `common/setup.sh` reads `OPENNEBULA_DEPLOYMENT_ENVIRONMENT` from
+  `.devcontainer/site.env`. The interactive picker was removed on purpose -
+  projects on this campus authenticate against the SAME OpenNebula instance, so
+  a mis-selection silently operates as the wrong user instead of failing. Set
+  `ONE_ALLOW_INTERACTIVE_SELECT=1` to opt back in
+- Each deployment has two paired files in `~/.one/`: `one_auth_<SUFFIX>`
+  (`user:password`) and `one_url_<SUFFIX>` (`ONE_URL` / `ONE_XMLRPC` /
+  `ONEFLOW_URL` shell assignments)
+- The `~/.one` bind-mount is **read-only** (the whole mount), so `setup.sh`
+  copies the selected auth file to `~/.one_auth` and points `ONE_AUTH` there.
+  The CLI reads `ONE_AUTH` when set, falling back to `~/.one/one_auth` only when
+  unset
+- **Do NOT keep a generic `~/.one/one_auth` on the host.** It is that fallback,
+  and it may hold a different deployment's credentials - this misattributed a
+  session once already. Keep only suffixed pairs so the fallback fails loudly
+- Do NOT import OpenNebula credentials via `remoteEnv` `${localEnv:...}`. A host
+  exporting another deployment's credentials, or an empty `ONE_AUTH`, would
+  shadow the selected ones in every terminal: the CLI then fails with
+  `ONE_AUTH file not present`, or worse, authenticates as the wrong user. Only
+  `ANSIBLE_VAULT_PASSWORD` is legitimately host-provided
+
+## Environment wiring
+
+The selected credentials are written once to `~/.config/opennebula/env.sh` and
+carried by **four** channels, each covering a failure the others do not:
+
+| Channel | Covers |
+|---|---|
+| `/etc/profile.d/opennebula.sh` | Login shells. Survives devcontainer features regenerating `~/.bashrc`, which is why it is authoritative |
+| `~/.bashrc` | Interactive non-login terminals, which skip `/etc/profile.d/` |
+| `BASH_ENV` | Non-interactive agent shells |
+| `/etc/environment` | Processes started with a clean environment. Without the `ONE_URL` pin, Ansible's OpenNebula inventory plugin fails with `Required config 'api_url' not provided` |
+
+The file lives in the container home directory, deliberately **not** in
+`.devcontainer/`: that is a bind mount from the host, so a plaintext password
+there would land on the host filesystem inside a git repo, and `chmod 600` is
+not reliably enforced across the mount.
+
+## DNS
+
+- `runArgs` set explicit `--dns`/`--dns-search` rather than bind-mounting
+  `/etc/resolv.conf`. The bind-mount was unreliable: Docker Desktop on macOS can
+  snapshot a partially-written `resolv.conf` after a VPN reconnect (e.g. a
+  truncated `nameserver 172.16.1`), and the result is read-only with no fix
+  possible from inside the container without `SYS_ADMIN`
+- glibc honours only the **first 3** nameservers (`MAXNS`). A fourth entry is
+  silently never queried, so the list is capped at three
+- The internal resolver must stay **first**. glibc does not fall through on
+  NXDOMAIN, so a public resolver first would answer NXDOMAIN for internal names
+  rather than trying the internal one
+- `runArgs` only take effect on rebuild. For the current session, apply a
+  matching live edit to `/etc/resolv.conf`
+- The devcontainer has the same network access as the host - Docker Desktop
+  routes VPN traffic in. If something is unreachable the cause is almost always
+  host VPN/DNS, not a Docker limitation
+
+## Toolchain
+
+- Python tooling installs with **uv**, not pip or pipx. Ansible and ansible-lint
+  share one virtualenv (`/usr/local/ansible-venv`) so `ansible-core` is resolved
+  once; entry points are symlinked onto `PATH`
+- The venv is built on `/usr/bin/python3` with `--python-preference only-system`.
+  Without that, uv downloads its own CPython and Ansible silently runs on a
+  different interpreter from the one the editor settings pin
+- Shell completions install to `/etc/bash_completion.d/` via
+  `common/shell-completions.sh`, not the Dockerfile or `~/.bashrc`, so they
+  survive feature regeneration - the same durability pattern as
+  `/etc/profile.d/opennebula.sh`
+- Dockerfile linting is the `docker.docker` (Docker DX) extension. hadolint, the
+  binary and the extension, was removed: the extension had not been released
+  since 2022
+
+## OpenNebula CLI compatibility
+
+`common/opennebula-cli-tools-patch.sh` installs stubs only when the installed gem
+needs them, using a probe per stub rather than a version comparison, so each
+retires itself. Verified against the published gems:
+
+| gem | `load_opennebula_paths` | `HostSyncManager` |
+|---|---|---|
+| <= 7.2.0 | missing - stub needed | top-level require - stub needed |
+| 7.2.1 | shipped (this is where OpenNebula/one#7608 landed, **not** 7.4.0) | still top-level - stub needed |
+| >= 7.4.0 | shipped | lazy require behind `rescue LoadError` - no stub |
+
+Do not probe `HostSyncManager` by requiring `one_helper/onehost_helper`: that
+fails on 7.4.0 too, for unrelated reasons, so the stub would never retire. The
+probe reads where the `require` sits in the installed gem instead.
+
+## Versions
+
+`common/detect-opennebula-version.sh` asks the live server and derives matching
+CLI and PyONE specs. The `site.env` fallbacks apply **only** when the server is
+unreachable; `*_VERSION_OVERRIDE` always wins. Note `~> 7.0` resolves to the
+newest 7.x, not the server-matched patch.
+
+Base image and action versions are kept current by Dependabot upstream, which
+auto-merges everything except major bumps.
