@@ -165,7 +165,14 @@ vault_guard_check_staged_plaintext_patterns() {
 
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
-        [[ "$file" == .githooks/* ]] && continue
+        # Skip hook sources wherever they live. They necessarily contain the
+        # very patterns this function greps for, so scanning them is a
+        # guaranteed false positive. Matching any githooks/ directory - not just
+        # .githooks/ - keeps this correct now the guard is also vendored to
+        # .devcontainer/common/githooks/.
+        case "$file" in
+            .githooks/*|*/githooks/*) continue ;;
+        esac
         [[ "$file" == *.md || "$file" == *.mdc ]] && continue
 
         added_lines=$(git -C "$repo_root" diff --cached --unified=0 -- "$file" | sed -n '/^+[^+]/p' || true)
