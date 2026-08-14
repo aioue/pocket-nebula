@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # vault-guard.sh - deterministic Ansible vault / pilfer checks for pre-commit.
 # Canonical copy: pocket-nebula .devcontainer-shared/common/githooks/vault-guard.sh
 # Vendored into each consumer at .devcontainer/common/githooks/ - do not edit here.
@@ -217,6 +218,11 @@ vault_guard_check_staged_plaintext_patterns() {
 }
 
 # Run all vault/pilfer guards. Sets vault_guard_blocked=1 on failure.
+#
+# SC2034: vault_guard_blocked looks unused here because it is this
+# function's return channel - the calling pre-commit hook reads it after
+# vault_guard_run returns, rather than using the exit status.
+# shellcheck disable=SC2034
 vault_guard_run() {
     local repo_root staged_files
     vault_guard_blocked=0
