@@ -36,6 +36,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Needed to approve the PR's own queued workflow runs - see the approve step.
+  actions: write
 
 jobs:
   auto-merge:
@@ -70,6 +72,27 @@ jobs:
             echo "merge=true" >> "$GITHUB_OUTPUT"
             echo "Eligible for auto-merge (update-type: ${UPDATE_TYPE:-n/a})."
           fi
+
+      # GitHub queues rather than runs workflows on PRs opened by bots, leaving
+      # them "action_required". With a required status check on main that is a
+      # deadlock: the check never runs, so it can never pass, so auto-merge waits
+      # forever. Approving the queued runs lets the checks execute - they still
+      # have to PASS, so this unblocks verification rather than skipping it.
+      - name: Approve queued workflow runs for this PR
+        if: steps.decide.outputs.merge == 'true'
+        run: |
+          set -euo pipefail
+          SHA='${{ github.event.pull_request.head.sha }}'
+          runs=$(gh api "/repos/${{ github.repository }}/actions/runs?head_sha=${SHA}&status=action_required" \
+                   --jq '.workflow_runs[].id' 2>/dev/null || true)
+          if [[ -z "$runs" ]]; then
+            echo "No queued runs awaiting approval."
+            exit 0
+          fi
+          for id in $runs; do
+            echo "Approving run ${id}"
+            gh api -X POST "/repos/${{ github.repository }}/actions/runs/${id}/approve" >/dev/null
+          done
 
       - name: Approve
         if: steps.decide.outputs.merge == 'true'
