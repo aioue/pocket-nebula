@@ -20,7 +20,7 @@
 set -euo pipefail
 
 UPSTREAM_REPO="${POCKET_NEBULA_REPO:-https://github.com/aioue/pocket-nebula.git}"
-UPSTREAM_SUBDIR="devcontainer-common"
+UPSTREAM_SUBDIR=".devcontainer-shared/common"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="${SCRIPT_DIR}/common"
