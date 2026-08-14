@@ -31,6 +31,57 @@ log()  { echo "🔄 [sync-common] $*"; }
 warn() { echo "⚠️  [sync-common] $*" >&2; }
 
 # ---------------------------------------------------------------------------
+# AGENTS.md assembly
+# ---------------------------------------------------------------------------
+# Agents reliably read one file and unreliably follow links, so the shared rules
+# are CONCATENATED into the repo's AGENTS.md rather than referenced from it:
+#
+#   common/AGENTS.core.md  (shared, vendored)  +  .devcontainer/AGENTS.site.md  (this repo)
+#
+# Both parts are optional. With no site file the core is used alone, so a repo
+# that has never had an AGENTS.md still gets one.
+#
+# An existing AGENTS.md that we did not generate is never clobbered: the managed
+# marker on line 1 is what identifies ours. Without it the file is left alone and
+# a warning explains how to adopt it.
+MANAGED_MARKER="<!-- managed-by: pocket-nebula shared devcontainer layer -->"
+
+assemble_agents_md() {
+    local core="${COMMON_DIR}/AGENTS.core.md"
+    local site="${SCRIPT_DIR}/AGENTS.site.md"
+    local workspace out tmp
+    workspace="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    out="${workspace}/AGENTS.md"
+
+    [[ -f "$core" ]] || return 0
+
+    if [[ -f "$out" ]] && ! head -1 "$out" | grep -qF "$MANAGED_MARKER"; then
+        warn "${out} exists but is not managed by this layer - leaving it untouched."
+        warn "To adopt the shared rules, move your project-specific sections into"
+        warn "  .devcontainer/AGENTS.site.md  and delete AGENTS.md, then rebuild."
+        return 0
+    fi
+
+    tmp="$(mktemp)"
+    cat "$core" > "$tmp"
+    if [[ -f "$site" ]]; then
+        printf '\n' >> "$tmp"
+        cat "$site" >> "$tmp"
+    fi
+
+    if [[ -f "$out" ]] && cmp -s "$tmp" "$out"; then
+        rm -f "$tmp"
+        return 0
+    fi
+    mv "$tmp" "$out"
+    log "regenerated AGENTS.md (shared core$([[ -f "$site" ]] && printf ' + site rules'))"
+}
+
+# Assemble on any exit, including the early ones below. Replaced by a combined
+# trap once the temp directory exists and also needs cleaning up.
+trap assemble_agents_md EXIT
+
+# ---------------------------------------------------------------------------
 # devcontainer.env bootstrap
 # ---------------------------------------------------------------------------
 # runArgs uses --env-file=.devcontainer/devcontainer.env, and docker fails hard
@@ -87,7 +138,7 @@ fi
 
 TMPDIR_SYNC="$(mktemp -d 2>/dev/null || mktemp -d -t sync-common)"
 cleanup() { rm -rf "$TMPDIR_SYNC"; }
-trap cleanup EXIT
+trap 'cleanup; assemble_agents_md' EXIT
 
 log "fetching ${UPSTREAM_REPO} @ ${REF}"
 if ! git clone --quiet --depth 1 --branch "$REF" "$UPSTREAM_REPO" "${TMPDIR_SYNC}/repo" 2>/dev/null; then

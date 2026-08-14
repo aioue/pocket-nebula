@@ -283,6 +283,25 @@ WORKSPACE_DIR="$(cd "${DEVCONTAINER_DIR}/.." && pwd)"
 git config --global --add safe.directory "$WORKSPACE_DIR"
 
 # ---------------------------------------------------------------------------
+# Git hooks
+# ---------------------------------------------------------------------------
+# core.hooksPath is repo-local git config, so it does not travel with a clone and
+# has to be re-applied inside every fresh container.
+#
+# A repo that has its own .githooks/ keeps it (its hooks can source the shared
+# vault guard from common/githooks/). Otherwise point core.hooksPath straight at
+# the shared hooks, so a project gets the commit-msg and pre-commit checks
+# without having to carry copies.
+if [[ -d "${WORKSPACE_DIR}/.githooks" ]]; then
+    git -C "$WORKSPACE_DIR" config core.hooksPath .githooks
+    echo "🪝 Git hooks: .githooks (repo-local)"
+elif [[ -d "${COMMON_DIR}/githooks" ]]; then
+    git -C "$WORKSPACE_DIR" config core.hooksPath .devcontainer/common/githooks
+    echo "🪝 Git hooks: .devcontainer/common/githooks (shared)"
+fi
+chmod +x "${COMMON_DIR}/githooks/"* 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
 # SSH host aliases
 # ---------------------------------------------------------------------------
 # The .ssh directory is bind-mounted from the host so key files are always

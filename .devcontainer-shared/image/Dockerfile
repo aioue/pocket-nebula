@@ -40,6 +40,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 #   ruby-dev,
 #   rubygems        needed to `gem install opennebula-cli` in setup.sh
 #   shellcheck      backs the timonwong.shellcheck extension
+#   just            task runner; each project's justfile wraps the long
+#                   ansible-playbook invocations so flags cannot be mistyped
 #
 # BuildKit cache mounts keep the downloaded .debs across rebuilds, so editing
 # anything below this layer refetches nothing. sharing=locked because apt takes
@@ -59,6 +61,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         dialog \
         dnsutils \
         file \
+        just \
         netcat-openbsd \
         plocate \
         ripgrep \

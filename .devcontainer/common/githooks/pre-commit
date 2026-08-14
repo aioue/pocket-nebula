@@ -1,0 +1,101 @@
+#!/bin/bash
+# Shared pre-commit checks.
+#
+# Vendored from the pocket-nebula shared devcontainer layer - do not edit here,
+# edit it upstream. Wired up by setup.sh via core.hooksPath.
+#
+# Deliberately lightweight: only checks that are fast, deterministic, and catch
+# something a reviewer realistically would not. Anything slow or opinionated
+# belongs in CI, not in the path between you and a commit.
+#
+# A repo can add its own checks in .githooks/pre-commit.site (executable); it
+# runs last and its exit status is honoured.
+#
+# Emergency bypass: git commit --no-verify   (do not use routinely)
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+blocked=0
+
+# Staged, still-present files only - deletions have nothing to lint.
+staged() { git diff --cached --name-only --diff-filter=ACM; }
+
+# --- 1. Vault / credential guard ------------------------------------------
+# The one check that protects against an unrecoverable mistake: committing a
+# decrypted secret. Sourced rather than executed, per its own header.
+for candidate in \
+    "${REPO_ROOT}/.devcontainer/common/githooks/vault-guard.sh" \
+    "${HOOK_DIR}/vault-guard.sh"; do
+    if [[ -f "$candidate" ]]; then
+        # shellcheck source=/dev/null
+        . "$candidate"
+        if command -v vault_guard_run >/dev/null 2>&1; then
+            # vault_guard_run reports through $vault_guard_blocked, not its exit
+            # status - `vault_guard_run || blocked=1` would silently pass.
+            vault_guard_run
+            [[ "${vault_guard_blocked:-0}" -ne 0 ]] && blocked=1
+        fi
+        break
+    fi
+done
+
+# --- 2. Merge conflict markers --------------------------------------------
+# Cheap, and catches a mistake that is embarrassing in a shared branch.
+while IFS= read -r f; do
+    [[ -f "$f" ]] || continue
+    if grep -qE '^(<<<<<<< |>>>>>>> |={7}$)' "$f" 2>/dev/null; then
+        echo "❌ conflict markers in ${f}" >&2
+        blocked=1
+    fi
+done < <(staged)
+
+# --- 3. Shell syntax ------------------------------------------------------
+# Syntax only (bash -n), not shellcheck: a style opinion should not block a
+# commit, but a script that cannot parse always should.
+while IFS= read -r f; do
+    case "$f" in *.sh) ;; *) continue ;; esac
+    [[ -f "$f" ]] || continue
+    if ! bash -n "$f" 2>/dev/null; then
+        echo "❌ shell syntax error in ${f}" >&2
+        bash -n "$f" 2>&1 | sed 's/^/     /' >&2
+        blocked=1
+    fi
+done < <(staged)
+
+# --- 4. Parseable YAML and JSON -------------------------------------------
+# A malformed inventory or workflow file fails much later and much less clearly.
+if command -v python3 >/dev/null 2>&1; then
+    while IFS= read -r f; do
+        [[ -f "$f" ]] || continue
+        case "$f" in
+            *.json)
+                if ! python3 -c "import json,sys;json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
+                    echo "❌ invalid JSON in ${f}" >&2
+                    blocked=1
+                fi
+                ;;
+            *.yml|*.yaml)
+                # Only when a YAML parser is available; do not hard-depend on one.
+                if python3 -c "import yaml" 2>/dev/null; then
+                    if ! python3 -c "import yaml,sys;list(yaml.safe_load_all(open(sys.argv[1])))" "$f" 2>/dev/null; then
+                        echo "❌ invalid YAML in ${f}" >&2
+                        blocked=1
+                    fi
+                fi
+                ;;
+        esac
+    done < <(staged)
+fi
+
+# --- 5. Repo-specific extension -------------------------------------------
+if [[ -x "${REPO_ROOT}/.githooks/pre-commit.site" ]]; then
+    "${REPO_ROOT}/.githooks/pre-commit.site" || blocked=1
+fi
+
+if [[ $blocked -ne 0 ]]; then
+    echo "" >&2
+    echo "Commit blocked. Fix the above, or bypass with --no-verify if you are sure." >&2
+    exit 1
+fi
+exit 0

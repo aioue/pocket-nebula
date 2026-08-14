@@ -66,6 +66,23 @@ if command -v onevm >/dev/null 2>&1; then
     # as often a VPN/DNS problem as a credential one.
     if error_output=$(onevm list 2>&1 >/dev/null); then
         echo "  ✅ CLI Connection: Working"
+
+        # A working connection is more useful stated as what you can see. Counts
+        # come from the same list commands, with --csv so the parse does not
+        # depend on column widths, and are best-effort: a failure here must never
+        # turn a healthy container start into a scary message.
+        one_count() {
+            local out
+            out=$("$1" list --csv 2>/dev/null) || { echo "?"; return; }
+            # First line is the CSV header.
+            printf '%s' "$out" | awk 'NR>1' | grep -c . || echo 0
+        }
+        printf "  📊 Visible to %s: %s VMs, %s hosts, %s templates, %s images\n" \
+            "${ONE_USERNAME:-you}" \
+            "$(one_count onevm)" \
+            "$(one_count onehost)" \
+            "$(one_count onetemplate)" \
+            "$(one_count oneimage)"
     else
         echo "  ⚠️  CLI Connection test failed. Error output:"
         echo ""
