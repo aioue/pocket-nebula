@@ -1,0 +1,56 @@
+#!/bin/bash
+# Enforce Conventional Commit titles.
+#
+# Vendored from the pocket-nebula shared devcontainer layer - do not edit here,
+# edit it upstream. Wired up by setup.sh via core.hooksPath.
+#
+# The title format is what drives release automation: release-please reads these
+# prefixes to decide the version bump and to group the changelog. A commit that
+# does not parse is silently omitted from the changelog rather than rejected, so
+# the mistake is invisible until a release is missing something. Hence a hook.
+#
+# Emergency bypass: git commit --no-verify   (do not use routinely)
+set -euo pipefail
+
+MSG_FILE="$1"
+# First non-comment, non-blank line is the title.
+TITLE="$(grep -vE '^\s*(#|$)' "$MSG_FILE" | head -1)"
+
+# Allow the messages git generates for merges, reverts and fixups.
+case "$TITLE" in
+    Merge\ *|Revert\ *|fixup!\ *|squash!\ *|amend!\ *) exit 0 ;;
+esac
+
+# type(optional scope)optional !: description
+#
+# Types match the changelog sections configured in release-please-config.json.
+PATTERN='^(feat|fix|perf|deps|build|ci|docs|refactor|chore|test|style|revert)(\([a-z0-9._/-]+\))?!?: .+'
+
+if [[ ! "$TITLE" =~ $PATTERN ]]; then
+    cat >&2 <<EOF
+❌ Commit title is not a Conventional Commit.
+
+   Got:      ${TITLE}
+
+   Expected: <type>(<optional scope>): <description>
+   Types:    feat fix perf deps build ci docs refactor chore test style revert
+
+   Examples:
+     feat(devcontainer): add shared setup script
+     fix: correct DNS resolver order
+     refactor(inventory)!: rename group vars    <- '!' marks a breaking change
+
+   Release automation reads these prefixes to decide the version bump and to
+   build the changelog, so a non-conforming title is quietly left out.
+
+   Bypass (rarely): git commit --no-verify
+EOF
+    exit 1
+fi
+
+# A title much over 72 characters is truncated in most git UIs.
+if [[ ${#TITLE} -gt 72 ]]; then
+    echo "⚠️  Commit title is ${#TITLE} characters; under 72 reads better in git log." >&2
+fi
+
+exit 0
