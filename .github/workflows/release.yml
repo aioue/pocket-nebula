@@ -24,6 +24,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Needed to approve the release PR's parked workflow runs.
+  actions: write
 
 # Never run two release PR updates at once - they would fight over the branch.
 concurrency:
@@ -49,6 +51,48 @@ jobs:
         run: |
           echo "Released ${{ steps.release.outputs.tag_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Publishing the base image for this tag." >> "$GITHUB_STEP_SUMMARY"
+
+      # Unblock the standing release PR.
+      #
+      # GitHub raises no workflow events at all for a pull request created with
+      # the default GITHUB_TOKEN - the recursion guard again - so neither the
+      # auto-merge workflow's pull_request_target nor the PR's own checks start
+      # on their own. The checks are created but parked as action_required.
+      #
+      # This job DOES run (it is triggered by the push to main), so it is the one
+      # place able to release them. Approving the queued runs lets the checks
+      # execute; they still have to pass before auto-merge will land the PR.
+      #
+      # The alternative is a PAT or GitHub App token for release-please, which
+      # would make its PRs behave like anyone else's. That is the documented fix,
+      # and worth switching to if this needs to do much more - but it means a
+      # credential to create, store and rotate.
+      - name: Unblock and auto-merge the release PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR=$(gh pr list --state open --limit 1 \
+                 --search "head:release-please--branches--main" \
+                 --json number --jq '.[0].number // empty')
+          if [[ -z "$PR" ]]; then
+            echo "No open release PR."
+            exit 0
+          fi
+          echo "Release PR is #${PR}"
+
+          SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+          runs=$(gh api "/repos/${{ github.repository }}/actions/runs?head_sha=${SHA}&status=action_required" \
+                   --jq '.workflow_runs[].id' 2>/dev/null || true)
+          for id in $runs; do
+            echo "Approving queued run ${id}"
+            gh api -X POST "/repos/${{ github.repository }}/actions/runs/${id}/approve" >/dev/null || true
+          done
+
+          # Auto-merge waits for the required checks, so this does not merge
+          # anything that has not passed.
+          gh pr merge --auto --squash "$PR" || \
+            echo "Could not enable auto-merge (is it enabled on the repository?)"
 
   # Publish the image for the tag release-please just created.
   #
