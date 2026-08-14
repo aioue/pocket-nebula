@@ -76,9 +76,24 @@ jobs:
           # gh otherwise infers the repo from git remotes and fails with
           # "not a git repository".
           REPO='${{ github.repository }}'
-          PR=$(gh pr list --repo "$REPO" --state open --limit 1 \
-                 --search "head:release-please--branches--main" \
-                 --json number --jq '.[0].number // empty')
+          # Deliberately NOT `--search`: that hits GitHub's search index, which
+          # is eventually consistent and had not caught up seconds after
+          # release-please created the PR - the step reported "no open release
+          # PR" and silently skipped. The plain list endpoint is immediately
+          # consistent, so filter it with jq instead.
+          #
+          # Retried briefly anyway, since the PR is created moments earlier in
+          # this same job.
+          PR=""
+          for attempt in 1 2 3 4 5; do
+            PR=$(gh pr list --repo "$REPO" --state open --limit 50 \
+                   --json number,headRefName \
+                   --jq '[.[] | select(.headRefName | startswith("release-please--"))]
+                         | .[0].number // empty')
+            [[ -n "$PR" ]] && break
+            echo "No release PR yet (attempt ${attempt}); waiting..."
+            sleep 5
+          done
           if [[ -z "$PR" ]]; then
             echo "No open release PR."
             exit 0
