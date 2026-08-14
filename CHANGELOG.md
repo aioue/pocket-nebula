@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/aioue/pocket-nebula/compare/v1.3.1...v1.4.0) (2026-08-14)
+
+
+### Features
+
+* share the devcontainer Cursor rule alongside AGENTS.md ([0d9304f](https://github.com/aioue/pocket-nebula/commit/0d9304f6d065d13c93fc8ccea9c0395d593f7fe7))
+
+
+### Bug Fixes
+
+* **ci:** match parked workflow runs by conclusion, not status ([a872f25](https://github.com/aioue/pocket-nebula/commit/a872f251c33ff449c5ef28c05bfcc652ab2c4253))
+* **ci:** pass --repo to gh in the release job ([dd95ebe](https://github.com/aioue/pocket-nebula/commit/dd95ebed59c65baff2d82e06f5c065a83e6cd6a8))
+
 ## [1.3.1](https://github.com/aioue/pocket-nebula/compare/v1.3.0...v1.3.1) (2026-08-14)
 
 
