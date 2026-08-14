@@ -72,7 +72,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          PR=$(gh pr list --state open --limit 1 \
+          # --repo on every gh call: this job does not check the repo out, and
+          # gh otherwise infers the repo from git remotes and fails with
+          # "not a git repository".
+          REPO='${{ github.repository }}'
+          PR=$(gh pr list --repo "$REPO" --state open --limit 1 \
                  --search "head:release-please--branches--main" \
                  --json number --jq '.[0].number // empty')
           if [[ -z "$PR" ]]; then
@@ -81,17 +85,17 @@ jobs:
           fi
           echo "Release PR is #${PR}"
 
-          SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
-          runs=$(gh api "/repos/${{ github.repository }}/actions/runs?head_sha=${SHA}&status=action_required" \
+          SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+          runs=$(gh api "/repos/${REPO}/actions/runs?head_sha=${SHA}&status=action_required" \
                    --jq '.workflow_runs[].id' 2>/dev/null || true)
           for id in $runs; do
             echo "Approving queued run ${id}"
-            gh api -X POST "/repos/${{ github.repository }}/actions/runs/${id}/approve" >/dev/null || true
+            gh api -X POST "/repos/${REPO}/actions/runs/${id}/approve" >/dev/null || true
           done
 
           # Auto-merge waits for the required checks, so this does not merge
           # anything that has not passed.
-          gh pr merge --auto --squash "$PR" || \
+          gh pr merge --auto --squash --repo "$REPO" "$PR" || \
             echo "Could not enable auto-merge (is it enabled on the repository?)"
 
   # Publish the image for the tag release-please just created.
