@@ -7,7 +7,7 @@
 
 # Pocket Nebula ✨→👖
 
-A dev container for working against [OpenNebula](https://opennebula.io/) with Ansible — and a
+A dev container for working against [OpenNebula](https://opennebula.io/) with Ansible - and a
 **shared devcontainer layer** that several projects can consume without copy-pasting between them.
 
 Use it two ways:
@@ -25,7 +25,7 @@ Use it two ways:
 [spec#716](https://github.com/devcontainers/spec/issues/716),
 [vscode-remote-release#11421](https://github.com/microsoft/vscode-remote-release/issues/11421))
 are all still open. So teams running several similar projects copy a `.devcontainer/` between
-repos and it quietly diverges — each repo ends up ahead of the others in different places.
+repos and it quietly diverges - each repo ends up ahead of the others in different places.
 
 This repo solves that with the two mechanisms the spec *does* provide.
 
