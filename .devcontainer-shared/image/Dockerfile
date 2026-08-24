@@ -16,7 +16,7 @@
 # is pinned and auditable. Declared as a named FROM stage (not an inline
 # COPY --from=<url>) specifically so Dependabot's docker ecosystem sees it and
 # opens a PR when a new uv is released.
-FROM ghcr.io/astral-sh/uv:0.12.4 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.5 AS uv
 
 FROM mcr.microsoft.com/devcontainers/base:noble
 
