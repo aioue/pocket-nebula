@@ -16,9 +16,13 @@ Use it two ways:
 2. **As an upstream.** Have your own repos pull the shared layer from here, so an improvement made
    in one project reaches the others.
 
+<div align="center">
+  <img width="577" alt="Console build output" src="https://github.com/user-attachments/assets/06ce9b2d-4e4f-4787-91a0-0235908d906b" />
+</div>
+
 ---
 
-## Why this exists
+## What is Pocket Nebula?
 
 `devcontainer.json` has no `extends`, and the requests for one
 ([spec#22](https://github.com/devcontainers/spec/issues/22),
