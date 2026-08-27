@@ -101,6 +101,11 @@ not reliably enforced across the mount.
 
 ## Toolchain
 
+- Do **not** put `PATH` in the base image's `containerEnv` metadata. It is passed
+  to `docker run -e` literally, so `${PATH}` is not expanded and the entrypoint
+  sleep loop fails with `sleep: not found`. Ansible entry points are symlinked onto
+  `/usr/local/py-utils/bin` by `setup.sh`, which the python feature already puts
+  on PATH at build time
 - Python tooling installs with **uv**, not pip or pipx. Ansible and ansible-lint
   share one virtualenv (`/usr/local/ansible-venv`) so `ansible-core` is resolved
   once; entry points are symlinked onto `PATH`

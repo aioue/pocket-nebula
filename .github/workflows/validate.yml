@@ -82,6 +82,14 @@ jobs:
           docker image inspect validate-base:ci --format '{{ json .Config.Labels }}' \
             | python3 .devcontainer-shared/image/verify-metadata-label.py
 
+      - name: devcontainer.metadata rejects containerEnv PATH
+        run: |
+          set -euo pipefail
+          printf '%s\n' '{"devcontainer.metadata":"[{\"remoteUser\":\"vscode\",\"containerEnv\":{\"PATH\":\"/usr/local/ansible-venv/bin:${PATH}\",\"BASH_ENV\":\"/usr/local/etc/devcontainer-bash-env.sh\"},\"mounts\":[],\"customizations\":{}}]"}' \
+            | python3 .devcontainer-shared/image/verify-metadata-label.py \
+            && { echo 'expected verify-metadata-label.py to reject containerEnv PATH'; exit 1; } \
+            || echo 'containerEnv PATH correctly rejected'
+
       - name: Shared layer matches the vendored copy
         run: |
           set -euo pipefail

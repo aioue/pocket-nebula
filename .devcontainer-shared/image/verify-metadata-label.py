@@ -20,6 +20,12 @@ import sys
 
 REQUIRED_KEYS = ("customizations", "mounts", "containerEnv", "remoteUser")
 LABEL = "devcontainer.metadata"
+# containerEnv is passed to `docker run -e` literally. ${PATH} is not expanded
+# there (only ${localEnv:...} works, and ${containerEnv:PATH} only in remoteEnv
+# after the container is up). A metadata PATH therefore drops /usr/bin and /bin,
+# and the devcontainer entrypoint sleep loop fails with "sleep: not found".
+FORBIDDEN_CONTAINER_ENV_KEYS = frozenset({"PATH"})
+FORBIDDEN_CONTAINER_ENV_SUBSTRINGS = ("${PATH}",)
 
 
 def label_sets(data):
@@ -40,6 +46,40 @@ def label_sets(data):
         return [(v.get("config") or {}).get("Labels") or {}
                 for v in data.values() if isinstance(v, dict)]
     return []
+
+
+def container_env_maps(parsed):
+    for entry in parsed:
+        if isinstance(entry, dict):
+            env = entry.get("containerEnv")
+            if isinstance(env, dict):
+                yield env
+
+
+def forbidden_container_env_errors(image_name, parsed):
+    errors = []
+    for env in container_env_maps(parsed):
+        for key in FORBIDDEN_CONTAINER_ENV_KEYS:
+            if key in env:
+                errors.append(
+                    f"image[{image_name}] containerEnv must not set {key} "
+                    f"({env[key]!r}): containerEnv is passed to docker run -e "
+                    f"literally, so ${'{'}PATH{'}'} is not expanded and the "
+                    f"entrypoint sleep loop fails with 'sleep: not found'. "
+                    f"Ansible entry points are symlinked onto "
+                    f"/usr/local/py-utils/bin by setup.sh."
+                )
+        for key, value in env.items():
+            if not isinstance(value, str):
+                continue
+            for needle in FORBIDDEN_CONTAINER_ENV_SUBSTRINGS:
+                if needle in value:
+                    errors.append(
+                        f"image[{image_name}] containerEnv.{key} must not "
+                        f"reference ${'{'}PATH{'}'} ({value!r}): containerEnv "
+                        f"values are not expanded at docker run time."
+                    )
+    return errors
 
 
 def main() -> int:
@@ -78,6 +118,9 @@ def main() -> int:
         missing = [k for k in REQUIRED_KEYS if k not in present]
         if missing:
             print(f"FAIL: image[{name}] devcontainer.metadata missing {missing}", file=sys.stderr)
+            return 1
+        for error in forbidden_container_env_errors(name, parsed):
+            print(f"FAIL: {error}", file=sys.stderr)
             return 1
 
     print(f"OK: devcontainer.metadata present and valid on {len(all_labels)} image config(s)")

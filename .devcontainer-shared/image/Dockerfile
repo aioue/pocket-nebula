@@ -138,6 +138,10 @@ SHELL
 # Merged with each consumer's devcontainer.json by the dev containers spec:
 #   mounts       collected as a list (last source wins on conflict)
 #   containerEnv last value wins
+# Do NOT put PATH in containerEnv below. It is passed to docker run -e literally,
+# so ${PATH} is not expanded and /usr/bin disappears; the entrypoint sleep loop
+# then fails with "sleep: not found". Ansible entry points land on PATH via
+# /usr/local/py-utils/bin once setup.sh runs.
 #   lifecycle    all collected, image entries run before the repo's own
 #   customizations  merging is left to the tool
 # The consumer's devcontainer.json is considered last, so it always overrides.
