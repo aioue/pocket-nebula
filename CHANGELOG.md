@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/aioue/pocket-nebula/compare/v1.5.0...v1.5.1) (2026-08-26)
+
+
+### Dependencies
+
+* bump astral-sh/uv ([#16](https://github.com/aioue/pocket-nebula/issues/16)) ([aadfff5](https://github.com/aioue/pocket-nebula/commit/aadfff5c37ac9931b28fc4098c9dbad9a500d643))
+
 ## [1.5.0](https://github.com/aioue/pocket-nebula/compare/v1.4.1...v1.5.0) (2026-08-16)
 
 
