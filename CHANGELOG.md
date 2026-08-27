@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/aioue/pocket-nebula/compare/v1.5.1...v1.5.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **image:** reject containerEnv PATH in metadata verification ([4b657a3](https://github.com/aioue/pocket-nebula/commit/4b657a35dce9024fb4f801cb12f8d05d78e820f3))
+* **image:** reject containerEnv PATH in metadata verification ([54b724b](https://github.com/aioue/pocket-nebula/commit/54b724b765bf38ebc787105a2ccd64388aeefcdc))
+
 ## [1.5.1](https://github.com/aioue/pocket-nebula/compare/v1.5.0...v1.5.1) (2026-08-26)
 
 
