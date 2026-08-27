@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/aioue/pocket-nebula/compare/v1.5.3...v1.6.0) (2026-08-27)
+
+
+### Features
+
+* **setup:** auto-detect lone credentials, fail on ambiguous auth ([f55727e](https://github.com/aioue/pocket-nebula/commit/f55727e35bdd0235534e3f3dde7d46171c9c572d))
+
 ## [1.5.3](https://github.com/aioue/pocket-nebula/compare/v1.5.2...v1.5.3) (2026-08-27)
 
 
