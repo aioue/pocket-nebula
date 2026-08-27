@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.3](https://github.com/aioue/pocket-nebula/compare/v1.5.2...v1.5.3) (2026-08-27)
+
+
+### Bug Fixes
+
+* **sync:** do not abort when drift display diff finds changes ([43a901e](https://github.com/aioue/pocket-nebula/commit/43a901e3b16281bd1eaa26da0cc42225f04618d1))
+* **sync:** do not abort when drift display diff finds changes ([dd42f6a](https://github.com/aioue/pocket-nebula/commit/dd42f6aa0693148dfb86fbdbc696392f16b916af))
+
 ## [1.5.2](https://github.com/aioue/pocket-nebula/compare/v1.5.1...v1.5.2) (2026-08-27)
 
 
