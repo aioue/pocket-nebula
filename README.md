@@ -60,23 +60,35 @@ everything but name.
 ### 1. Provide credentials on the host
 
 Credentials live in `~/.one/` on your machine and are bind-mounted **read-only** into the
-container. They are never copied into the repo and never written to the workspace.
+container. They are never copied into the repo. XML-RPC endpoints (`ONE_URL`, `ONE_XMLRPC`) are
+set per project in `.devcontainer/site.env`, not in `~/.one/`.
 
-For each deployment, create a matching pair, where `<SUFFIX>` is a short label of your choosing:
+#### Single OpenNebula environment (typical)
+
+If `~/.one/` holds only one `one_auth` file, `setup.sh` uses it automatically when
+`OPENNEBULA_DEPLOYMENT_ENVIRONMENT` is unset in `site.env`:
 
 ```bash
 mkdir -p ~/.one
 
-# Credentials, in user:password form
-printf 'myuser:mypassword' > ~/.one/one_auth_PROD
-chmod 600 ~/.one/one_auth_PROD
+printf 'myuser:mypassword' > ~/.one/one_auth
+chmod 600 ~/.one/one_auth
+```
 
-# Endpoints, as shell variable assignments
-cat > ~/.one/one_url_PROD <<'EOF'
-ONE_URL=https://cloud.example.com/RPC2
-ONE_XMLRPC=https://cloud.example.com/RPC2
-ONEFLOW_URL=https://cloud.example.com:2474
-EOF
+Add endpoints to `.devcontainer/site.env` (see `site.env.example`).
+
+#### Multiple environments on one host
+
+Use suffixed auth files when `~/.one/` holds more than one credential set (for example
+`one_auth_AcorpPROD` and `one_auth_BcorpTEST`). **Container setup fails** if several auth files
+exist and `OPENNEBULA_DEPLOYMENT_ENVIRONMENT` is not set. Legacy `one_url*` files in `~/.one/`
+are no longer read.
+
+```bash
+mkdir -p ~/.one
+
+printf 'myuser:mypassword' > ~/.one/one_auth_AcorpPROD
+chmod 600 ~/.one/one_auth_AcorpPROD
 ```
 
 Optionally, for encrypted Ansible content:
@@ -87,18 +99,20 @@ printf 'my-vault-password' > ~/.ansible-vault/vault-password
 chmod 600 ~/.ansible-vault/vault-password
 ```
 
-### 2. Select the deployment
+### 2. Configure site.env
 
-Set the suffix in `.devcontainer/site.env`:
+Copy `.devcontainer-shared/templates/site.env.example` to `.devcontainer/site.env` and set
+endpoints plus the deployment suffix when you have multiple auth files:
 
 ```bash
-OPENNEBULA_DEPLOYMENT_ENVIRONMENT=PROD
+OPENNEBULA_DEPLOYMENT_ENVIRONMENT=AcorpPROD
+ONE_URL=https://cloud.example.com/RPC2
+ONE_XMLRPC=https://cloud.example.com/RPC2
+ONEFLOW_URL=https://cloud.example.com:2474
 ```
 
-This is deliberately a committed, per-repo setting rather than an interactive prompt. If several
-deployments share one OpenNebula instance, a mis-selection would silently operate as the *wrong
-user* instead of failing — so the choice is pinned per repo. Set
-`ONE_ALLOW_INTERACTIVE_SELECT=1` if you would rather be asked each time.
+When several deployments share one OpenNebula instance, pin the suffix per repo. A mis-selection
+silently operates as the wrong user rather than failing loudly.
 
 ### 3. Open in the container
 

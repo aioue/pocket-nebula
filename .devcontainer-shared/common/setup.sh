@@ -62,23 +62,69 @@ _run_site_hook pre-setup.sh
 # ---------------------------------------------------------------------------
 # Credential selection
 # ---------------------------------------------------------------------------
-# Deployment is chosen deterministically from OPENNEBULA_DEPLOYMENT_ENVIRONMENT
-# (set per repo in .devcontainer/site.env). We deliberately do NOT offer an
-# interactive picker by default: institutes on this campus authenticate against
-# the SAME shared OpenNebula instance, so a mis-selection would silently operate
-# as the wrong user rather than failing loudly.
+# Auth files in ~/.one/ (read-only bind mount):
+#   one_auth or one_auth_<SUFFIX>  - user:password (OpenNebula ONE_AUTH convention)
+# Endpoints (ONE_URL, ONE_XMLRPC, ONEFLOW_URL) come from site.env, not ~/.one/.
 #
-# Set ONE_ALLOW_INTERACTIVE_SELECT=1 in site.env to opt back into the picker.
-#
-# For the chosen SUFFIX there should be a matching pair in ~/.one/:
-#   one_auth_<SUFFIX>  - credentials in user:password format
-#   one_url_<SUFFIX>   - shell variable assignments (ONE_URL, ONE_XMLRPC, ONEFLOW_URL)
-# The ~/.one bind-mount is read-only, so the selected auth file is written to
-# ~/.one_auth (home directory) and ONE_AUTH is set to point there.
+# Decision table:
+#   count=0     -> warn, continue (first-time / offline setup)
+#   count=1     -> auto-use if pin unset or suffix matches
+#   count>1     -> require OPENNEBULA_DEPLOYMENT_ENVIRONMENT in site.env, or exit 1
+#   pin set     -> one_auth_<pin> must exist, or exit 1
 # ---------------------------------------------------------------------------
 
 ONE_DIR="/home/vscode/.one"
 BASHRC_PATH="$HOME/.bashrc"
+
+_one_fail_setup() {
+    echo "❌ OpenNebula container setup failed: $*" >&2
+    echo "   Fix the issue above and rebuild the devcontainer." >&2
+    exit 1
+}
+
+_one_collect_auth_files() {
+    local -n _files=$1
+    _files=()
+    if [[ -f "${ONE_DIR}/one_auth" ]]; then
+        _files+=("${ONE_DIR}/one_auth")
+    fi
+    local _candidate _base
+    for _candidate in "${ONE_DIR}"/one_auth_*; do
+        [[ -f "$_candidate" ]] || continue
+        _base="${_candidate##*/}"
+        if [[ "$_base" =~ \.(bak|orig|swp)$ ]] || [[ "$_base" =~ ~$ ]]; then
+            continue
+        fi
+        if [[ "$_base" =~ ^one_auth_[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+            _files+=("$_candidate")
+        fi
+    done
+}
+
+_one_deployment_label() {
+    local auth="$1"
+    local base="${auth##*/}"
+    if [[ "$base" == one_auth ]]; then
+        echo "default"
+    else
+        echo "${base#one_auth_}"
+    fi
+}
+
+_one_warn_legacy_url_files() {
+    local _legacy=()
+    if [[ -f "${ONE_DIR}/one_url" ]]; then
+        _legacy+=("one_url")
+    fi
+    local _f
+    for _f in "${ONE_DIR}"/one_url_*; do
+        [[ -f "$_f" ]] && _legacy+=("${_f##*/}")
+    done
+    if [[ ${#_legacy[@]} -gt 0 ]]; then
+        echo "⚠️  Legacy URL files in ~/.one/ are no longer read: ${_legacy[*]}"
+        echo "   Set ONE_URL and ONE_XMLRPC in .devcontainer/site.env instead."
+    fi
+}
 
 # The env file deliberately lives in the container's home directory, NOT in
 # .devcontainer/. That directory is a bind mount from the host, so a plaintext
@@ -90,58 +136,87 @@ mkdir -p "$ONE_ENV_DIR"
 touch "$ONE_ENV_FILE"
 chmod 600 "$ONE_ENV_FILE"
 
-SUFFIX="${OPENNEBULA_DEPLOYMENT_ENVIRONMENT:-}"
+SUFFIX=""
 AUTH_FILE=""
+AUTH_CANDIDATES=()
+_one_collect_auth_files AUTH_CANDIDATES
+_pinned="${OPENNEBULA_DEPLOYMENT_ENVIRONMENT:-}"
 
-if [[ "${ONE_ALLOW_INTERACTIVE_SELECT:-0}" == "1" ]]; then
-    # Opt-in picker. Scans ~/.one for one_auth_* and prompts. Only enable this
-    # where operating as the wrong user is an inconvenience rather than a hazard.
-    AUTH_FILES=("${ONE_DIR}"/one_auth_*)
-    if [[ ${#AUTH_FILES[@]} -eq 0 || ! -f "${AUTH_FILES[0]}" ]]; then
-        echo "⚠️  No one_auth_* files found in ${ONE_DIR}."
-        echo "   Create ${ONE_DIR}/one_auth_<SUFFIX> and ${ONE_DIR}/one_url_<SUFFIX>."
-    else
-        echo ""
-        echo "🔑 Available OpenNebula credential sets:"
-        for i in "${!AUTH_FILES[@]}"; do
-            # Show the suffix only (e.g. QIB, EI) rather than the full path
-            echo "  $((i+1))) ${AUTH_FILES[$i]##*one_auth_}"
+if [[ -n "$_pinned" && ! -f "${ONE_DIR}/one_auth_${_pinned}" ]]; then
+    echo "❌ OPENNEBULA_DEPLOYMENT_ENVIRONMENT=${_pinned} but ${ONE_DIR}/one_auth_${_pinned} is missing." >&2
+    if [[ ${#AUTH_CANDIDATES[@]} -gt 0 ]]; then
+        echo "   Credential files found in ~/.one/:" >&2
+        for _candidate in "${AUTH_CANDIDATES[@]}"; do
+            echo "     ${_candidate##*/}" >&2
         done
-
-        # postCreateCommand runs without a TTY, so we can't use bash's `select` builtin
-        # (it reads from stdin which may be /dev/null in the devcontainer lifecycle).
-        # Read directly from /dev/tty, which is always the user's terminal regardless of
-        # how stdin is wired up by VS Code during postCreate.
-        echo ""
-        printf "Enter number [1-%d]: " "${#AUTH_FILES[@]}"
-        read -r CHOICE </dev/tty
-
-        if [[ "$CHOICE" =~ ^[0-9]+$ ]] && (( CHOICE >= 1 && CHOICE <= ${#AUTH_FILES[@]} )); then
-            AUTH_FILE="${AUTH_FILES[$((CHOICE-1))]}"
-        else
-            echo "⚠️  Invalid selection. Defaulting to first available: ${AUTH_FILES[0]##*one_auth_}"
-            AUTH_FILE="${AUTH_FILES[0]}"
-        fi
-        SUFFIX="${AUTH_FILE##*one_auth_}"
     fi
-elif [[ -z "$SUFFIX" ]]; then
-    echo "⚠️  OPENNEBULA_DEPLOYMENT_ENVIRONMENT is not set."
-    echo "   Set it in .devcontainer/site.env (e.g. OPENNEBULA_DEPLOYMENT_ENVIRONMENT=QIB)."
-    echo "   Continuing without selecting credentials."
-else
+    _one_fail_setup "create ${ONE_DIR}/one_auth_${_pinned} or fix the pin in .devcontainer/site.env"
+fi
+
+if [[ ${#AUTH_CANDIDATES[@]} -eq 1 ]]; then
+    _single_label="$(_one_deployment_label "${AUTH_CANDIDATES[0]}")"
+    if [[ -z "$_pinned" || "$_single_label" == "$_pinned" ]]; then
+        AUTH_FILE="${AUTH_CANDIDATES[0]}"
+        if [[ -z "$_pinned" ]]; then
+            echo "ℹ️  Single credential file (${AUTH_FILE##*/}); using it automatically"
+        else
+            echo "ℹ️  Single credential file (${AUTH_FILE##*/}); matches OPENNEBULA_DEPLOYMENT_ENVIRONMENT=${_pinned}"
+        fi
+    else
+        echo "⚠️  Single credential file (${AUTH_CANDIDATES[0]##*/}) does not match OPENNEBULA_DEPLOYMENT_ENVIRONMENT=${_pinned}"
+        echo "   Expected ${ONE_DIR}/one_auth_${_pinned}."
+    fi
+fi
+
+if [[ -z "$AUTH_FILE" && -n "$_pinned" ]]; then
+    SUFFIX="${_pinned}"
     AUTH_FILE="${ONE_DIR}/one_auth_${SUFFIX}"
 fi
 
-if [[ -z "$AUTH_FILE" || ! -f "$AUTH_FILE" ]]; then
-    if [[ -n "$SUFFIX" && -n "$AUTH_FILE" ]]; then
-        echo "⚠️  Credential file not found: ${AUTH_FILE}"
-        echo "   Expected ${ONE_DIR}/one_auth_${SUFFIX} (and one_url_${SUFFIX})."
+if [[ -z "$AUTH_FILE" && "${ONE_ALLOW_INTERACTIVE_SELECT:-0}" == "1" && ${#AUTH_CANDIDATES[@]} -gt 0 ]]; then
+    if [[ ! -e /dev/tty ]]; then
+        _one_fail_setup "ONE_ALLOW_INTERACTIVE_SELECT=1 but no TTY during container create; set OPENNEBULA_DEPLOYMENT_ENVIRONMENT in site.env instead"
     fi
-    echo "   Continuing without selecting credentials."
-else
-    URL_FILE="${ONE_DIR}/one_url_${SUFFIX}"
+    echo ""
+    echo "🔑 Available OpenNebula credential sets:"
+    for i in "${!AUTH_CANDIDATES[@]}"; do
+        echo "  $((i+1))) $(_one_deployment_label "${AUTH_CANDIDATES[$i]}") (${AUTH_CANDIDATES[$i]##*/})"
+    done
+    echo ""
+    printf "Enter number [1-%d]: " "${#AUTH_CANDIDATES[@]}"
+    read -r CHOICE </dev/tty
+    if [[ "$CHOICE" =~ ^[0-9]+$ ]] && (( CHOICE >= 1 && CHOICE <= ${#AUTH_CANDIDATES[@]} )); then
+        AUTH_FILE="${AUTH_CANDIDATES[$((CHOICE-1))]}"
+    else
+        _one_fail_setup "invalid credential selection"
+    fi
+fi
 
-    echo "✅ Selected deployment: $SUFFIX"
+if [[ -z "$AUTH_FILE" && ${#AUTH_CANDIDATES[@]} -gt 1 && -z "$_pinned" ]]; then
+    echo "❌ Multiple credential files in ~/.one/ and OPENNEBULA_DEPLOYMENT_ENVIRONMENT is not set." >&2
+    for _candidate in "${AUTH_CANDIDATES[@]}"; do
+        echo "     ${_candidate##*/}" >&2
+    done
+    _one_fail_setup "set OPENNEBULA_DEPLOYMENT_ENVIRONMENT in .devcontainer/site.env to the suffix you need (e.g. AcorpPROD)"
+fi
+
+if [[ -z "$AUTH_FILE" && ${#AUTH_CANDIDATES[@]} -eq 0 ]]; then
+    echo "⚠️  No credential files in ${ONE_DIR}."
+    echo "   Create one_auth or one_auth_<SUFFIX> (user:password format)."
+    echo "   Continuing without OpenNebula credentials."
+fi
+
+_one_warn_legacy_url_files
+
+if [[ -z "$AUTH_FILE" || ! -f "$AUTH_FILE" ]]; then
+    if [[ -n "$AUTH_FILE" ]]; then
+        echo "⚠️  Credential file not found: ${AUTH_FILE}"
+        echo "   Continuing without selecting credentials."
+    fi
+else
+    DEPLOYMENT_LABEL="$(_one_deployment_label "$AUTH_FILE")"
+
+    echo "✅ Selected deployment: ${DEPLOYMENT_LABEL}"
 
     # The ~/.one bind-mount is read-only, so we cannot write one_auth inside it.
     # Instead, write to ~/.one_auth (the home directory, which is writable) and set
@@ -167,30 +242,29 @@ else
     export ONE_PASSWORD="${ONE_CREDS#*:}"
     echo "👤 Username: ${ONE_USERNAME}"
 
-    # Source the matching URL file to set ONE_URL, ONE_XMLRPC, ONEFLOW_URL etc.
-    # The file must contain shell variable assignments (e.g. ONE_URL=https://cloud.example.com/RPC2)
-    if [[ -f "$URL_FILE" ]]; then
-        echo "🔗 Loading URL configuration from: $URL_FILE"
-        set -a
-        # shellcheck source=/dev/null
-        source "$URL_FILE"
-        set +a
-        echo "   ONE_URL=${ONE_URL:-not set}"
-        echo "   ONE_XMLRPC=${ONE_XMLRPC:-not set}"
-        echo "   ONEFLOW_URL=${ONEFLOW_URL:-not set}"
-    else
-        echo "⚠️  No matching URL file found at ${URL_FILE}"
-        echo "   Set ONE_URL, ONE_XMLRPC, ONEFLOW_URL manually or create ${URL_FILE}"
-        echo "   Expected format (shell variable assignments, one per line):"
-        echo "     ONE_URL=https://cloud.example.com/RPC2"
-        echo "     ONE_XMLRPC=https://cloud.example.com/RPC2"
-        echo "     ONEFLOW_URL=https://cloud.example.com:2474"
+    if [[ -z "${ONE_URL:-}" && -z "${ONE_XMLRPC:-}" ]]; then
+        _one_fail_setup "ONE_URL and ONE_XMLRPC are not set; add them to .devcontainer/site.env"
+    fi
+    if [[ -z "${ONE_URL:-}" ]]; then
+        echo "⚠️  ONE_URL is not set (Ansible inventory needs it); ONE_XMLRPC is set for the Ruby CLI"
+    fi
+    if [[ -z "${ONE_XMLRPC:-}" ]]; then
+        echo "⚠️  ONE_XMLRPC is not set (Ruby CLI needs it); ONE_URL is set for Ansible"
+    fi
+    if [[ -n "${ONE_URL:-}" ]]; then
+        echo "   ONE_URL=${ONE_URL}"
+    fi
+    if [[ -n "${ONE_XMLRPC:-}" ]]; then
+        echo "   ONE_XMLRPC=${ONE_XMLRPC}"
+    fi
+    if [[ -n "${ONEFLOW_URL:-}" ]]; then
+        echo "   ONEFLOW_URL=${ONEFLOW_URL}"
     fi
 
     # Persist the selection in one env file, wired into four channels below so
     # that every kind of shell and subprocess sees the same credentials.
     cat > "$ONE_ENV_FILE" <<ENVEOF
-# OpenNebula credentials and endpoints (set by setup.sh for deployment: $SUFFIX)
+# OpenNebula credentials and endpoints (set by setup.sh for deployment: ${DEPLOYMENT_LABEL})
 export ONE_AUTH='${AUTH_TARGET}'
 export ONE_USERNAME='${ONE_USERNAME}'
 export ONE_PASSWORD='${ONE_PASSWORD}'
@@ -260,7 +334,7 @@ echo "🔍 Validating OpenNebula configuration..."
 if [[ -z "${ONE_URL:-}" && -z "${ONE_XMLRPC:-}" ]]; then
     echo "⚠️  WARNING: Neither ONE_URL nor ONE_XMLRPC is set."
     echo "   Automatic version detection will be skipped; fallback versions will be used."
-    echo "   Set these in your one_url_<SUFFIX> file."
+    echo "   Set both in .devcontainer/site.env when credentials are configured."
 else
     echo "✅ OpenNebula endpoint configured"
 fi

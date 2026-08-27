@@ -42,26 +42,19 @@ Lifecycle commands **concatenate** rather than override, so adding a
 
 ## Credential model
 
-- Deployment selection is **deterministic per repo**, not interactive:
-  `common/setup.sh` reads `OPENNEBULA_DEPLOYMENT_ENVIRONMENT` from
-  `.devcontainer/site.env`. The interactive picker was removed on purpose -
-  projects on this campus authenticate against the SAME OpenNebula instance, so
-  a mis-selection silently operates as the wrong user instead of failing. Set
-  `ONE_ALLOW_INTERACTIVE_SELECT=1` to opt back in
-- Each deployment has two paired files in `~/.one/`: `one_auth_<SUFFIX>`
-  (`user:password`) and `one_url_<SUFFIX>` (`ONE_URL` / `ONE_XMLRPC` /
-  `ONEFLOW_URL` shell assignments)
-- The `~/.one` bind-mount is **read-only** (the whole mount), so `setup.sh`
-  copies the selected auth file to `~/.one_auth` and points `ONE_AUTH` there.
-  The CLI reads `ONE_AUTH` when set, falling back to `~/.one/one_auth` only when
-  unset
-- **Do NOT keep a generic `~/.one/one_auth` on the host.** It is that fallback,
-  and it may hold a different deployment's credentials - this misattributed a
-  session once already. Keep only suffixed pairs so the fallback fails loudly
-- Do NOT import OpenNebula credentials via `remoteEnv` `${localEnv:...}`. A host
-  exporting another deployment's credentials, or an empty `ONE_AUTH`, would
-  shadow the selected ones in every terminal: the CLI then fails with
-  `ONE_AUTH file not present`, or worse, authenticates as the wrong user. Only
+- **One credential file in `~/.one/`** (`one_auth` or `one_auth_<SUFFIX>`): auto-used when
+  `OPENNEBULA_DEPLOYMENT_ENVIRONMENT` is unset, or when the file suffix matches the pin.
+  Generic `one_auth` (label `default`) does not match a pinned suffix
+- **Several credential files, no pin**: container setup **fails**; set
+  `OPENNEBULA_DEPLOYMENT_ENVIRONMENT` in `.devcontainer/site.env`
+- **Pin set**: `one_auth_<SUFFIX>` must exist; a lone mismatched file is not substituted
+- Auth files hold `user:password` (OpenNebula `ONE_AUTH` convention). Endpoints
+  (`ONE_URL`, `ONE_XMLRPC`, `ONEFLOW_URL`) belong in `.devcontainer/site.env`, not `~/.one/`
+- Legacy `one_url*` files in `~/.one/` are ignored; setup warns if they remain
+- The `~/.one` bind-mount is **read-only**; `setup.sh` copies the selected auth file to
+  `~/.one_auth` and sets `ONE_AUTH`. Avoid a generic `~/.one/one_auth` **alongside**
+  suffixed files when several sets exist
+- Do NOT import OpenNebula credentials via `remoteEnv` `${localEnv:...}`. Only
   `ANSIBLE_VAULT_PASSWORD` is legitimately host-provided
 
 ## Environment wiring
