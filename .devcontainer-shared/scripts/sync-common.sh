@@ -232,9 +232,10 @@ fi
 # Override with POCKET_NEBULA_SYNC=auto (never ask) or =never (never apply).
 if [[ -d "$COMMON_DIR" ]]; then
     log "shared layer has changed:"
+    # diff exits 1 when files differ; with pipefail that would abort before apply.
     diff -r -q "$COMMON_DIR" "$STAGING" 2>/dev/null \
         | sed -e 's/^/     /' -e "s|${COMMON_DIR}/||g" -e "s|${STAGING}/||g" \
-        | head -20
+        | head -20 || true
 fi
 
 SYNC_MODE="${POCKET_NEBULA_SYNC:-prompt}"
