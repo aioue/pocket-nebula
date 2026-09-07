@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.1](https://github.com/aioue/pocket-nebula/compare/v1.6.0...v1.6.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **devcontainer:** pilfer in ansible venv and quiet uv progress ([5bffde1](https://github.com/aioue/pocket-nebula/commit/5bffde1a0103c73aece025c38643ba9fe05f8e76))
+* **devcontainer:** pilfer in ansible venv and quiet uv progress ([5bffde1](https://github.com/aioue/pocket-nebula/commit/5bffde1a0103c73aece025c38643ba9fe05f8e76))
+* **devcontainer:** pilfer in ansible venv and quiet uv progress ([104b096](https://github.com/aioue/pocket-nebula/commit/104b096a2078819d0cc941d597ad4c9e8dcf2e46))
+* **sync:** default POCKET_NEBULA_SYNC to auto ([058bf1a](https://github.com/aioue/pocket-nebula/commit/058bf1aba474b5d4c3b3b2087231a8c23aa0b02c))
+* **sync:** default POCKET_NEBULA_SYNC to auto ([c23bad4](https://github.com/aioue/pocket-nebula/commit/c23bad45b39e843ffcd4582f858e7b5e8ad01902))
+
+
+### Dependencies
+
+* bump astral-sh/uv ([#24](https://github.com/aioue/pocket-nebula/issues/24)) ([5c754ff](https://github.com/aioue/pocket-nebula/commit/5c754ff5139b3f19210a60ac46219296a444e64b))
+* bump astral-sh/uv ([#25](https://github.com/aioue/pocket-nebula/issues/25)) ([fee2d14](https://github.com/aioue/pocket-nebula/commit/fee2d147b6f932520f1cfd78b491e0856c8a986f))
+
 ## [1.6.0](https://github.com/aioue/pocket-nebula/compare/v1.5.3...v1.6.0) (2026-08-27)
 
 
