@@ -35,9 +35,9 @@ This repo solves that with the two mechanisms the spec *does* provide.
 
 | Layer | What it holds | How a change reaches consumers |
 |---|---|---|
-| **A. Base image** | apt packages, `uv`, shell history wiring, and a `devcontainer.metadata` label carrying shared mounts, extensions, settings and lifecycle hooks | `FROM ghcr.io/aioue/pocket-nebula-base:v1` — one ordinary rebuild |
+| **A. Base image** | apt packages, `uv`, baked Ansible/ruff/pilfer/gh, shell history wiring, and a `devcontainer.metadata` label carrying shared mounts, extensions, settings and lifecycle hooks | `FROM ghcr.io/aioue/pocket-nebula-base:v1` — one ordinary rebuild |
 | **B. Shared scripts** | `setup.sh` and helpers, vendored into each repo at `.devcontainer/common/` | `initializeCommand` sync, which runs **before the build** — same rebuild, no second one |
-| **C. Per-repo config** | `name`, `build`, `runArgs`, `features` — the things that genuinely differ | edited by hand; a drift checker warns about duplication |
+| **C. Per-repo config** | `name`, `build`, `runArgs` — the things that genuinely differ (DNS, env-file) | edited by hand; a drift checker warns about duplication |
 
 The key detail is ordering. `initializeCommand` runs **on the host, before the image is built**, so
 a shared-layer change is fetched and in place for the build and `postCreateCommand` of the *same*
@@ -145,7 +145,8 @@ To have your own repo consume this shared layer:
 3. Copy the templates from `.devcontainer-shared/templates/` to `.devcontainer/` and edit `site.env`.
 4. Point `.devcontainer/Dockerfile` at `FROM ghcr.io/aioue/pocket-nebula-base:v1`.
 5. In `devcontainer.json`, set `"initializeCommand": ".devcontainer/sync-common.sh"` and keep only
-   `name`, `build`, `runArgs` and `features` — everything else comes from the image.
+   `name`, `build` and `runArgs` — everything else comes from the image. Do **not** add the
+   `python` or `github-cli` devcontainer features; they are baked into the base image.
 
 Run a rebuild and `.devcontainer/common/` is populated. Commit it: it is vendored deliberately, so
 a fresh clone works with no extra steps and no network.

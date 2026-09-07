@@ -98,6 +98,11 @@ if collisions:
     notes.append("containerEnv overrides the base image (last value wins): "
                  + ", ".join(sorted(collisions)))
 
+for feat in (cfg.get("features") or {}):
+    if "python" in feat or "github-cli" in feat:
+        notes.append("feature baked into pocket-nebula-base - remove from devcontainer.json: "
+                     + feat)
+
 # Mounts concatenate, so only an exact re-declaration of a shared target is drift.
 for mount in cfg.get("mounts", []) or []:
     spec = mount if isinstance(mount, str) else ",".join(

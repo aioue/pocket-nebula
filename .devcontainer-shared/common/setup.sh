@@ -407,68 +407,40 @@ if [[ -n "${SSH_ALIASES:-}" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Ansible and related tools via uv
+# PyONE in the baked Ansible venv
 # ---------------------------------------------------------------------------
-# uv replaces pip/pipx here purely for speed - it resolves and installs an order
-# of magnitude faster, and this section dominates container-create time. It is
-# provided by the base image, which also sets UV_TOOL_BIN_DIR to the same
-# /usr/local/py-utils/bin that the devcontainer python feature uses for pipx, so
-# tools land where PATH already looks and the shared "ruff.path" setting stays
-# correct.
+# ansible, ansible-lint, passlib, pytest, ruff and pilfer are baked into
+# pocket-nebula-base at image build time. Only pyone is installed here because
+# its version tracks the live OpenNebula server.
 #
-# Ansible and ansible-lint share ONE virtual environment. Installed separately
-# (as they were under pipx) each one resolves and builds its own copy of
-# ansible-core - the single most expensive dependency here - so sharing a venv
-# removes a whole duplicate resolution. pyone, passlib and pytest join the same
-# venv because they are all things Ansible content needs at runtime; pytest in
-# particular has to live there so collection unit tests can import ansible.*.
-#
-# TODO(speed): the parts of this that do not depend on the server version -
-# ansible, ansible-lint, passlib, pytest, ruff, pilfer - could be baked into the
-# base image as cached layers, cutting them from every container create to zero.
-# Only pyone and the opennebula-cli gem are genuinely server-version-dependent.
-# Deferred because it means an image tag bump to update Ansible, rather than a
-# plain rebuild.
-#
-# TODO(speed): the gem install, this venv build and the galaxy collection install
-# are mutually independent and all network-bound. Backgrounding them with a
-# single `wait` would overlap the three. Deferred: it makes a failure in any one
-# of them harder to attribute in the setup log.
+# TODO(speed): the gem install, pyone install and galaxy collection install are
+# mutually independent and all network-bound. Backgrounding them with a single
+# `wait` would overlap the three. Deferred: it makes a failure in any one of
+# them harder to attribute in the setup log.
 
 ANSIBLE_VENV="/usr/local/ansible-venv"
-
-# Build the venv on the SYSTEM interpreter, explicitly. Left to its own devices
-# uv will happily download and use a managed CPython, which silently gives
-# Ansible a different Python from the /usr/bin/python3 that the shared
-# "ansible.python.interpreterPath" and "python.defaultInterpreterPath" settings
-# pin - so modules would resolve in the editor but not at runtime, or vice versa.
-# --python-preference only-system makes that failure mode impossible.
 SYSTEM_PYTHON="/usr/bin/python3"
+
+if [[ ! -x "${ANSIBLE_VENV}/bin/python" ]]; then
+    echo "❌ Baked Ansible venv missing at ${ANSIBLE_VENV}." >&2
+    echo "   Rebuild with a current pocket-nebula-base image (:v1 or newer)." >&2
+    exit 1
+fi
 if [[ ! -x "$SYSTEM_PYTHON" ]]; then
-    echo "❌ $SYSTEM_PYTHON not found. The devcontainer python feature should provide it."
-    echo "   Check the 'ghcr.io/devcontainers/features/python' entry in devcontainer.json."
+    echo "❌ $SYSTEM_PYTHON not found." >&2
     exit 1
 fi
 
 echo ""
-echo "📦 Creating shared Ansible environment with uv (python: $("$SYSTEM_PYTHON" -V))..."
-sudo mkdir -p "$ANSIBLE_VENV"
-sudo chown -R "$(id -u):$(id -g)" "$ANSIBLE_VENV"
-uv venv --python "$SYSTEM_PYTHON" --python-preference only-system "$ANSIBLE_VENV"
+echo "📦 Using baked Ansible environment (${ANSIBLE_VENV}, $("$SYSTEM_PYTHON" -V))..."
 
-echo "🔌 Installing Ansible extensions and dependencies..."
-
-# Detect compatible PyONE version before installation
 echo "🔍 Auto-detecting compatible PyONE version..."
 if [[ -n "${PYONE_VERSION_OVERRIDE:-}" ]]; then
-    # OVERRIDE always wins, whether or not detection would have worked.
     echo "📌 Using PyONE version override: $PYONE_VERSION_OVERRIDE"
     PYONE_VERSION_SPEC="$PYONE_VERSION_OVERRIDE"
 elif PYONE_VERSION_SPEC=$("${COMMON_DIR}/detect-opennebula-version.sh" pyone-spec 2>/dev/null); then
     echo "✅ Detected server version, using PyONE: $PYONE_VERSION_SPEC"
 elif [[ -n "${PYONE_VERSION_FALLBACK:-}" ]]; then
-    # FALLBACK applies only when server detection fails. Set per repo in site.env
-    # to the newest version known to work against that institute's deployment.
     echo "⚠️  Auto-detection failed, using site fallback PyONE version: $PYONE_VERSION_FALLBACK"
     PYONE_VERSION_SPEC="$PYONE_VERSION_FALLBACK"
 else
@@ -477,38 +449,9 @@ else
     exit 1
 fi
 
-# One resolution, one venv, everything Ansible-side in it.
-echo "💎 Installing ansible, ansible-lint, pyone${PYONE_VERSION_SPEC}, passlib, pytest..."
+echo "💎 Installing pyone${PYONE_VERSION_SPEC} into the shared Ansible venv..."
 uv pip install --python "${ANSIBLE_VENV}/bin/python" --python-preference only-system \
-    ansible \
-    ansible-lint \
-    "pyone${PYONE_VERSION_SPEC}" \
-    passlib \
-    pytest
-
-# uv installs into the venv but does not put its console scripts on PATH the way
-# `pipx install` did. Symlink them into UV_TOOL_BIN_DIR so ansible, ansible-lint,
-# ansible-playbook and friends stay available exactly as before.
-UV_BIN_DIR="${UV_TOOL_BIN_DIR:-/usr/local/py-utils/bin}"
-sudo mkdir -p "$UV_BIN_DIR"
-LINKED=0
-for script in "${ANSIBLE_VENV}"/bin/*; do
-    name="$(basename "$script")"
-    # Skip the venv's own plumbing - only real entry points should go on PATH.
-    case "$name" in
-        python|python3|python3.*|activate*|pydoc*|pip|pip3|pip3.*) continue ;;
-    esac
-    [[ -x "$script" ]] || continue
-    sudo ln -sf "$script" "${UV_BIN_DIR}/${name}"
-    LINKED=$((LINKED + 1))
-done
-echo "🔗 Linked ${LINKED} entry points into ${UV_BIN_DIR}"
-
-echo "⚡ Installing Ruff (Python linter and formatter)..."
-uv tool install --force ruff
-
-echo "🔐 Installing pilfer (Ansible vault bulk operations)..."
-uv tool install --force pilfer
+    "pyone${PYONE_VERSION_SPEC}"
 
 # ---------------------------------------------------------------------------
 # System Python packages
