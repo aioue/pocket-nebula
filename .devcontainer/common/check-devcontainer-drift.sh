@@ -99,7 +99,7 @@ if collisions:
                  + ", ".join(sorted(collisions)))
 
 for feat in (cfg.get("features") or {}):
-    if "python" in feat or "github-cli" in feat:
+    if "/features/python" in feat or "/features/github-cli" in feat:
         notes.append("feature baked into pocket-nebula-base - remove from devcontainer.json: "
                      + feat)
 

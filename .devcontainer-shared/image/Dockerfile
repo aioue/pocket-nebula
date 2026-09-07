@@ -90,18 +90,23 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # redraws are written to a non-TTY log and overwrote our own setup output, which
 # made the create log hard to read and lost several status lines entirely.
 ENV UV_TOOL_BIN_DIR=/usr/local/py-utils/bin \
+    UV_TOOL_DIR=/usr/local/uv-tools \
     UV_LINK_MODE=copy \
-    UV_NO_PROGRESS=1
+    UV_NO_PROGRESS=1 \
+    PATH="/usr/local/py-utils/bin:${PATH}"
 COPY --from=uv /uv /usr/local/bin/uv
-RUN mkdir -p /usr/local/py-utils/bin && chown -R ${USERNAME} /usr/local/py-utils && uv --version
+RUN mkdir -p /usr/local/py-utils/bin /usr/local/uv-tools \
+    && chown -R ${USERNAME} /usr/local/py-utils /usr/local/uv-tools \
+    && uv --version
 
 # Static Python/Ansible toolchain (ansible, ansible-lint, ruff, pilfer, passlib,
 # pytest). pyone and opennebula-cli are installed at container create by setup.sh
 # because their versions track the live OpenNebula server.
-COPY bake-static-toolchain.sh /usr/local/bin/pocket-nebula-bake-static-toolchain.sh
-RUN chmod +x /usr/local/bin/pocket-nebula-bake-static-toolchain.sh \
-    && pocket-nebula-bake-static-toolchain.sh \
-    && chown -R ${USERNAME} /usr/local/ansible-venv
+COPY common/install-static-toolchain.sh /usr/local/bin/pocket-nebula-install-static-toolchain.sh
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    chmod +x /usr/local/bin/pocket-nebula-install-static-toolchain.sh \
+    && pocket-nebula-install-static-toolchain.sh \
+    && chown -R ${USERNAME} /usr/local/ansible-venv /usr/local/py-utils /usr/local/uv-tools
 
 # Shell environment and persistent bash history.
 # Follows the devcontainer guidance at
@@ -192,7 +197,6 @@ LABEL devcontainer.metadata='[{ \
   "remoteUser": "vscode", \
   "containerEnv": { \
     "BASH_ENV": "/usr/local/etc/devcontainer-bash-env.sh", \
-    "PATH": "/usr/local/ansible-venv/bin:${PATH}", \
     "ANSIBLE_FORCE_COLOR": "1", \
     "PY_COLORS": "1", \
     "FORCE_COLOR": "1", \

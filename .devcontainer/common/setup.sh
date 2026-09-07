@@ -421,10 +421,9 @@ fi
 ANSIBLE_VENV="/usr/local/ansible-venv"
 SYSTEM_PYTHON="/usr/bin/python3"
 
-if [[ ! -x "${ANSIBLE_VENV}/bin/python" ]]; then
-    echo "❌ Baked Ansible venv missing at ${ANSIBLE_VENV}." >&2
-    echo "   Rebuild with a current pocket-nebula-base image (:v1 or newer)." >&2
-    exit 1
+if [[ ! -x "${ANSIBLE_VENV}/bin/ansible" ]]; then
+    echo "⚠️  Static toolchain not baked in base image; installing at container create (slow path)..."
+    "${COMMON_DIR}/install-static-toolchain.sh"
 fi
 if [[ ! -x "$SYSTEM_PYTHON" ]]; then
     echo "❌ $SYSTEM_PYTHON not found." >&2
@@ -450,7 +449,7 @@ else
 fi
 
 echo "💎 Installing pyone${PYONE_VERSION_SPEC} into the shared Ansible venv..."
-uv pip install --python "${ANSIBLE_VENV}/bin/python" --python-preference only-system \
+uv pip install --upgrade --python "${ANSIBLE_VENV}/bin/python" --python-preference only-system \
     "pyone${PYONE_VERSION_SPEC}"
 
 # ---------------------------------------------------------------------------

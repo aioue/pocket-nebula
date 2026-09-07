@@ -15,10 +15,12 @@ on:
       - main
     paths:
       - '.devcontainer-shared/image/**'
+      - '.devcontainer-shared/common/install-static-toolchain.sh'
       - '.github/workflows/base-image.yml'
   pull_request:
     paths:
       - '.devcontainer-shared/image/**'
+      - '.devcontainer-shared/common/install-static-toolchain.sh'
       - '.github/workflows/base-image.yml'
 
   # Called by release.yml once release-please has cut a tag.
@@ -100,7 +102,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: .devcontainer-shared/image
+          context: .devcontainer-shared
+          file: image/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

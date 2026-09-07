@@ -6,8 +6,8 @@
 // file taking precedence on any conflict.
 //
 // Only what the spec cannot put in image metadata belongs here: name, build,
-// runArgs, features. Those happen to be exactly the settings that legitimately
-// differ between projects, which is why the split works.
+// runArgs. python, github-cli and the static Ansible stack are baked into the
+// base image - do not re-add those features (check-devcontainer-drift.sh warns).
 //
 // See .devcontainer/common/ for the shared scripts (vendored, refreshed by
 // sync-common.sh before every build) and .devcontainer/site.env for local knobs.

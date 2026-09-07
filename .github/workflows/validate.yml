@@ -75,7 +75,7 @@ jobs:
           PY
 
       - name: Dockerfile builds
-        run: docker build -q -t validate-base:ci .devcontainer-shared/image
+        run: docker build -q -t validate-base:ci -f image/Dockerfile .devcontainer-shared
 
       - name: devcontainer.metadata label is valid
         run: |
