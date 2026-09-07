@@ -42,6 +42,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 #   shellcheck      backs the timonwong.shellcheck extension
 #   just            task runner; each project's justfile wraps the long
 #                   ansible-playbook invocations so flags cannot be mistyped
+#   python3-venv,
+#   python3-argcomplete  register-python-argcomplete for shell-completions.sh
+#   virtualenv      parity with the old devcontainer python feature
+#   gh              GitHub CLI (replaces devcontainer github-cli feature)
 #
 # BuildKit cache mounts keep the downloaded .debs across rebuilds, so editing
 # anything below this layer refetches nothing. sharing=locked because apt takes
@@ -68,20 +72,41 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ruby-dev \
         rubygems \
         shellcheck \
+        python3-venv \
+        python3-argcomplete \
+        virtualenv \
+        gh \
         xxd \
     && rm -rf /tmp/* /var/tmp/*
 
 # uv - a drop-in pip/pipx replacement that resolves and installs an order of
-# magnitude faster. common/setup.sh uses it for the whole Python toolchain, which
-# is the bulk of container-create time.
+# magnitude faster. setup.sh uses it only for server-version-dependent installs
+# (pyone); the static Ansible stack is baked below.
 #
-# UV_TOOL_BIN_DIR is pointed at the same directory the devcontainer python
-# feature uses for pipx binaries, so tools land where PATH already looks and the
-# shared "ruff.path": ["/usr/local/py-utils/bin/ruff"] setting stays correct.
+# UV_TOOL_BIN_DIR is where uv tool installs and Ansible entry-point symlinks land;
+# the shared "ruff.path": ["/usr/local/py-utils/bin/ruff"] setting points here.
+#
+# UV_NO_PROGRESS stops uv redrawing spinners during container create. Those
+# redraws are written to a non-TTY log and overwrote our own setup output, which
+# made the create log hard to read and lost several status lines entirely.
 ENV UV_TOOL_BIN_DIR=/usr/local/py-utils/bin \
-    UV_LINK_MODE=copy
+    UV_TOOL_DIR=/usr/local/uv-tools \
+    UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    PATH="/usr/local/py-utils/bin:${PATH}"
 COPY --from=uv /uv /usr/local/bin/uv
-RUN mkdir -p /usr/local/py-utils/bin && chown -R ${USERNAME} /usr/local/py-utils && uv --version
+RUN mkdir -p /usr/local/py-utils/bin /usr/local/uv-tools \
+    && chown -R ${USERNAME} /usr/local/py-utils /usr/local/uv-tools \
+    && uv --version
+
+# Static Python/Ansible toolchain (ansible, ansible-lint, ruff, pilfer, passlib,
+# pytest). pyone and opennebula-cli are installed at container create by setup.sh
+# because their versions track the live OpenNebula server.
+COPY common/install-static-toolchain.sh /usr/local/bin/pocket-nebula-install-static-toolchain.sh
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    chmod +x /usr/local/bin/pocket-nebula-install-static-toolchain.sh \
+    && pocket-nebula-install-static-toolchain.sh \
+    && chown -R ${USERNAME} /usr/local/ansible-venv /usr/local/py-utils /usr/local/uv-tools
 
 # Shell environment and persistent bash history.
 # Follows the devcontainer guidance at
@@ -93,7 +118,7 @@ RUN mkdir -p /usr/local/py-utils/bin && chown -R ${USERNAME} /usr/local/py-utils
 #
 # Note: pipx tab-completion is deliberately NOT wired into .bashrc here. It is
 # installed to /etc/bash_completion.d/ by common/shell-completions.sh instead,
-# because devcontainer features regenerate ~/.bashrc and would drop it.
+# because devcontainer feature layers and some editors regenerate ~/.bashrc.
 RUN <<SHELL
 set -euo pipefail
 mkdir -p ${USER_HOME_PATH}/.one
@@ -140,8 +165,8 @@ SHELL
 #   containerEnv last value wins
 # Do NOT put PATH in containerEnv below. It is passed to docker run -e literally,
 # so ${PATH} is not expanded and /usr/bin disappears; the entrypoint sleep loop
-# then fails with "sleep: not found". Ansible entry points land on PATH via
-# /usr/local/py-utils/bin once setup.sh runs.
+# then fails with "sleep: not found". Ansible entry points are symlinked onto
+# /usr/local/py-utils/bin in the bake step above.
 #   lifecycle    all collected, image entries run before the repo's own
 #   customizations  merging is left to the tool
 # The consumer's devcontainer.json is considered last, so it always overrides.

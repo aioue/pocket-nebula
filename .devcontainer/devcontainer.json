@@ -6,8 +6,8 @@
 // file taking precedence on any conflict.
 //
 // Only what the spec cannot put in image metadata belongs here: name, build,
-// runArgs, features. Those happen to be exactly the settings that legitimately
-// differ between projects, which is why the split works.
+// runArgs. python, github-cli and the static Ansible stack are baked into the
+// base image - do not re-add those features (check-devcontainer-drift.sh warns).
 //
 // See .devcontainer/common/ for the shared scripts (vendored, refreshed by
 // sync-common.sh before every build) and .devcontainer/site.env for local knobs.
@@ -46,17 +46,8 @@
 		"ANSIBLE_VAULT_PASSWORD": "${localEnv:ANSIBLE_VAULT_PASSWORD}"
 	},
 
-	"features": {
-		"ghcr.io/devcontainers/features/python:1": {
-			// Replaces the feature's large default tool list. virtualenv and
-			// argcomplete are all we need: the feature's real job here is providing
-			// pipx (and PIPX_BIN_DIR=/usr/local/py-utils/bin, where ruff.path points),
-			// while argcomplete supplies register-python-argcomplete for
-			// common/shell-completions.sh.
-			"toolsToInstall": "virtualenv, argcomplete"
-		},
-		"ghcr.io/devcontainers/features/github-cli:1": {}
-	},
+	// python, github-cli, ansible, ruff and pilfer are baked into pocket-nebula-base.
+	// Do not re-add devcontainer features for them - check-devcontainer-drift.sh warns.
 
 	"mounts": [
 		// Shared mounts (~/.ssh, ~/.one, ~/.ansible-vault) come from the base image.

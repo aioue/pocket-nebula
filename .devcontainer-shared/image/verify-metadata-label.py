@@ -67,7 +67,7 @@ def forbidden_container_env_errors(image_name, parsed):
                     f"literally, so ${'{'}PATH{'}'} is not expanded and the "
                     f"entrypoint sleep loop fails with 'sleep: not found'. "
                     f"Ansible entry points are symlinked onto "
-                    f"/usr/local/py-utils/bin by setup.sh."
+                    f"/usr/local/py-utils/bin by install-static-toolchain.sh at image build."
                 )
         for key, value in env.items():
             if not isinstance(value, str):

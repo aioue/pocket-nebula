@@ -33,8 +33,7 @@ _install_generated() {
 
 echo "🐚 Installing shell completions to ${COMPLETION_DIR}..."
 
-# Ansible CLI tools (python-argcomplete; installed into the shared uv venv by
-# setup.sh and symlinked onto PATH)
+# Ansible CLI tools (python-argcomplete; baked into pocket-nebula-base and on PATH)
 ANSIBLE_COMMANDS=(
     ansible
     ansible-playbook
@@ -51,9 +50,7 @@ for cmd in "${ANSIBLE_COMMANDS[@]}"; do
     _install_argcomplete "$cmd"
 done
 
-# pipx still ships with the devcontainer python feature even though setup.sh now
-# uses uv, so its completion is still worth installing.
-# (argcomplete; was previously wired only in the Dockerfile .bashrc)
+# pipx is optional; skip quietly when the base image was built without it.
 _install_argcomplete pipx
 
 # Ruff ships its own completion generator (uv tool install, not in apt bash-completion)

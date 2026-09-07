@@ -114,11 +114,23 @@ not reliably enforced across the mount.
 
 ## Toolchain
 
+The base image bakes the slow, version-stable tooling so container create only
+installs server-matched pieces:
+
+| Baked in `pocket-nebula-base` | Installed by `setup.sh` at create |
+|---|---|
+| `python3`, `virtualenv`, `argcomplete`, `gh` | `pyone` (server-matched) |
+| ansible, ansible-lint, passlib, pytest (shared venv) | `opennebula-cli` gem (server-matched) |
+| ruff (`uv tool install`), pilfer (shared venv) | Ansible Galaxy collections from `roles/requirements.yml` |
+
+Do **not** re-declare `ghcr.io/devcontainers/features/python` or
+`github-cli` in consumer `devcontainer.json` - they are redundant and
+`check-devcontainer-drift.sh` warns if present.
+
 - Do **not** put `PATH` in the base image's `containerEnv` metadata. It is passed
   to `docker run -e` literally, so `${PATH}` is not expanded and the entrypoint
   sleep loop fails with `sleep: not found`. Ansible entry points are symlinked onto
-  `/usr/local/py-utils/bin` by `setup.sh`, which the python feature already puts
-  on PATH at build time
+  `/usr/local/py-utils/bin` at image build time
 - Python tooling installs with **uv**, not pip or pipx. Ansible and ansible-lint
   share one virtualenv (`/usr/local/ansible-venv`) so `ansible-core` is resolved
   once; entry points are symlinked onto `PATH`
@@ -127,7 +139,7 @@ not reliably enforced across the mount.
   different interpreter from the one the editor settings pin
 - Shell completions install to `/etc/bash_completion.d/` via
   `common/shell-completions.sh`, not the Dockerfile or `~/.bashrc`, so they
-  survive feature regeneration - the same durability pattern as
+  survive editor regeneration of `~/.bashrc` - the same durability pattern as
   `/etc/profile.d/opennebula.sh`
 - Dockerfile linting is the `docker.docker` (Docker DX) extension. hadolint, the
   binary and the extension, was removed: the extension had not been released
