@@ -103,7 +103,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .devcontainer-shared
-          file: image/Dockerfile
+          file: .devcontainer-shared/image/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}

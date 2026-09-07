@@ -449,7 +449,7 @@ else
 fi
 
 echo "💎 Installing pyone${PYONE_VERSION_SPEC} into the shared Ansible venv..."
-uv pip install --upgrade --python "${ANSIBLE_VENV}/bin/python" --python-preference only-system \
+uv pip install --python "${ANSIBLE_VENV}/bin/python" --python-preference only-system \
     "pyone${PYONE_VERSION_SPEC}"
 
 # ---------------------------------------------------------------------------

@@ -121,7 +121,7 @@ installs server-matched pieces:
 |---|---|
 | `python3`, `virtualenv`, `argcomplete`, `gh` | `pyone` (server-matched) |
 | ansible, ansible-lint, passlib, pytest (shared venv) | `opennebula-cli` gem (server-matched) |
-| ruff, pilfer (`uv tool install`) | Ansible Galaxy collections from `roles/requirements.yml` |
+| ruff (`uv tool install`), pilfer (shared venv) | Ansible Galaxy collections from `roles/requirements.yml` |
 
 Do **not** re-declare `ghcr.io/devcontainers/features/python` or
 `github-cli` in consumer `devcontainer.json` - they are redundant and

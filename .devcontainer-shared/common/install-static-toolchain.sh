@@ -31,6 +31,10 @@ fi
 
 echo "Installing static toolchain (${SYSTEM_PYTHON})..."
 _run mkdir -p "$ANSIBLE_VENV" "$UV_BIN_DIR" "$UV_TOOL_DIR"
+if [[ "$(id -u)" -ne 0 ]]; then
+    # setup.sh fallback: sudo mkdir leaves root-owned parents; uv needs write access.
+    _run chown -R "$(id -u):$(id -g)" "$ANSIBLE_VENV" "$UV_BIN_DIR" "$UV_TOOL_DIR"
+fi
 
 if [[ ! -x "${ANSIBLE_VENV}/bin/python" ]]; then
     uv venv --python "$SYSTEM_PYTHON" --python-preference only-system "$ANSIBLE_VENV"
